@@ -92,7 +92,7 @@ def _merge_rule_records(rule_records):
         # iterate over records in order, using ith record as reference,
         # attempting to merge with records that come after it. don't use last
         # record as ref since nothing after it
-        for idx in range(0, len(prev_rule_records) - 1):
+        for idx in range(0, (len(prev_rule_records)-1)):
             ref_record = prev_rule_records[idx]
             records_to_compare = prev_rule_records[(idx + 1):]
             (merge_done, merge_idx, merged_record) = \

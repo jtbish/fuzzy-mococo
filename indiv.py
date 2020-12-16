@@ -1,5 +1,5 @@
-from util import (MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST,
-                  get_possibly_null_attr)
+from util import get_possibly_null_attr
+from multi_objective import MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST
 
 
 class Indiv:

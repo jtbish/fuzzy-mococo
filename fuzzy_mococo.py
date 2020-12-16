@@ -22,7 +22,8 @@ from subspecies import (parse_subspecies_tag, validate_subspecies_tags,
                         make_pop_init_pmfs, get_subpop)
 
 from lv_genotype import make_lv_indiv, make_ling_vars
-from multi_objective import assign_crowding_dists, assign_pareto_front_ranks
+from multi_objective import (assign_crowding_dists, assign_pareto_front_ranks,
+                             MIN_COMPLEXITY, calc_max_complexity)
 from rb_genotype import make_rb_indiv, make_rule_base
 from util import (ACTION_SET, NORMALISE_OBSS, RB_ALLELE_SET,
                   USE_DEFAULT_ACTION_SET, calc_lv_joint_fitness_records,
@@ -86,68 +87,50 @@ def main(args):
     soln_set = []
     lv_gen_history = {}
     rb_gen_history = {}
+    max_soln_complexity = calc_max_complexity(subspecies_tags)
     for gen_num in range(args.num_gens + 1):
-        lv_pop = lv_parent_pop + lv_child_pop
-        rb_pop = rb_parent_pop + rb_child_pop
-        _make_lv_phenotypes(lv_pop, env)
-        _make_rb_phenotypes(rb_pop, inference_engine)
+        lv_comb_pop = lv_parent_pop + lv_child_pop
+        rb_comb_pop = rb_parent_pop + rb_child_pop
+        _make_lv_phenotypes(lv_comb_pop, env)
+        _make_rb_phenotypes(rb_comb_pop, inference_engine)
         if gen_num == 0:
             collabr_map = _select_init_collabrs(lv_parent_pop, rb_parent_pop,
-                                                subspecies_ls)
+                                                subspecies_tags)
             soln_set = _build_soln_set(lv_parent_pop, rb_parent_pop,
-                                       subspecies_ls, collabr_map,
+                                       subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, args.env_perf_seed,
-                           args.num_perf_rollouts)
+            _eval_soln_set(soln_set, env, max_soln_complexity)
             _assign_indivs_credit(lv_parent_pop, soln_set)
             _assign_indivs_credit(rb_parent_pop, soln_set)
         else:
             _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
-                                rb_child_pop, subspecies_ls)
+                                rb_child_pop, subspecies_tags)
             collabr_map = _select_subsq_collabrs(lv_parent_pop, rb_parent_pop,
-                                                 subspecies_ls)
+                                                 subspecies_tags)
             soln_set = _build_soln_set(lv_child_pop, rb_child_pop,
-                                       subspecies_ls, collabr_map,
+                                       subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, args.num_perf_rollouts)
+            _eval_soln_set(soln_set, env, max_soln_complexity)
             _assign_indivs_credit(lv_child_pop, soln_set)
             _assign_indivs_credit(rb_child_pop, soln_set)
 
-        # do breeding for both pops
-        new_lv_pop = _do_breeding(lv_internal_fitness_records,
-                                  pop_size=args.lv_pop_size,
-                                  num_elites=args.num_lv_elites,
-                                  tourn_size=args.lv_tourn_size,
-                                  cross_callback={
-                                      "func": _line_recombination,
-                                      "kwargs": {
-                                          "p_cross_line": args.p_cross_line
-                                      }
-                                  },
-                                  mut_callback={
-                                      "func": _gaussian_mutation,
-                                      "kwargs": {
-                                          "sigma": args.mut_sigma
-                                      }
-                                  })
-        new_rb_pop = _do_breeding(rb_internal_fitness_records,
-                                  pop_size=args.rb_pop_size,
-                                  num_elites=args.num_rb_elites,
-                                  tourn_size=args.rb_tourn_size,
-                                  cross_callback={
-                                      "func": _uniform_crossover,
-                                      "kwargs": {
-                                          "p_cross_swap": args.p_cross_swap
-                                      }
-                                  },
-                                  mut_callback={
-                                      "func": _flip_mutation,
-                                      "kwargs": {
-                                          "p_mut_flip": args.p_mut_flip
-                                      }
-                                  })
-        lv_pop = new_lv_pop
-        rb_pop = new_rb_pop
+        # do parent selection then breeding for both pops
+        lv_comb_pop = lv_parent_pop + lv_child_pop
+        rb_comb_pop = rb_parent_pop + rb_child_pop
+        lv_parent_pop = select_parent_pop(pop=lv_comb_pop,
+                                          parent_pop_size=args.lv_pop_size)
+        rb_parent_pop = select_parent_pop(pop=rb_comb_pop,
+                                          parent_pop_size=args.rb_pop_size)
+        lv_child_pop = run_lv_ga(lv_parent_pop,
+                                 child_pop_size=args.lv_pop_size,
+                                 tourn_size=args.lv_tourn_size,
+                                 p_cross_line=args.p_cross_line,
+                                 mut_sigma=args.mut_sigma)
+        rb_child_pop = run_rb_ga(rb_parent_pop,
+                                 child_pop_size=args.rb_pop_size,
+                                 tourn_size=args.rb_tourn_size,
+                                 p_cross_swap=args.p_cross_swap,
+                                 p_mut_flip=args.p_mut_flip)
 
     _save_data(save_path, lv_gen_history, rb_gen_history, best_soln_record,
                args)
@@ -215,7 +198,7 @@ def _make_rb_phenotypes(rb_pop, inference_engine):
 
 
 def _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
-                        rb_child_pop, subspecies_ls):
+                        rb_child_pop, subspecies_tags):
     assert len(lv_child_pop) > 0
     assert len(rb_child_pop) > 0
 
@@ -223,7 +206,7 @@ def _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
     p2 = rb_parent_pop
     q1 = lv_child_pop
     q2 = rb_child_pop
-    for subspecies_tag in subspecies_ls:
+    for subspecies_tag in subspecies_tags:
         q1_sigma = get_subpop(q1, subspecies_tag)
         p2_sigma = get_subpop(p2, subspecies_tag)
         if len(q1_sigma) == 0 or len(p2_sigma) == 0:
@@ -242,37 +225,38 @@ def _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
 
     r1 = p1 + q1
     r2 = p2 + q2
-    subspecies_ls_copy = copy.deepcopy(subspecies_ls)
-    for subspecies_tag in subspecies_ls_copy:
+    subspecies_tags_copy = copy.deepcopy(subspecies_tags)
+    for subspecies_tag in subspecies_tags_copy:
         # check if there are *any* indivs with given tag in either pop
         # if not, subspecies is extinct
         r1_sigma = get_subpop(r1, subspecies_tag)
         r2_sigma = get_subpop(r2, subspecies_tag)
         if len(r1_sigma) == 0 and len(r2_sigma) == 0:
-            subspecies_ls.remove(subspecies_tag)
+            subspecies_tags.remove(subspecies_tag)
 
 
-def _select_init_collabrs(lv_parent_pop, rb_parent_pop, subspecies_ls):
+def _select_init_collabrs(lv_parent_pop, rb_parent_pop, subspecies_tags):
     return _select_collabrs(lv_parent_pop,
                             rb_parent_pop,
-                            subspecies_ls,
+                            subspecies_tags,
                             select_func=_single_random_collabr)
 
 
-def _select_subsq_collabrs(lv_parent_pop, rb_parent_pop, subspecies_ls):
+def _select_subsq_collabrs(lv_parent_pop, rb_parent_pop, subspecies_tags):
     return _select_collabrs(lv_parent_pop,
                             rb_parent_pop,
-                            subspecies_ls,
+                            subspecies_tags,
                             select_func=_best_and_random_collabr)
 
 
-def _select_collabrs(lv_parent_pop, rb_parent_pop, subspecies_ls, select_func):
+def _select_collabrs(lv_parent_pop, rb_parent_pop, subspecies_tags,
+                     select_func):
     # keys of collabr map are (pop_num, subspecies_tag) tuples: i.e. subpop
     # specifications, values are lists of collabrs (Indiv objs) in subpops
     collabr_map = {}
     pop_num_mapping = {1: lv_parent_pop, 2: rb_parent_pop}
     for (pop_num, pop) in pop_num_mapping.items():
-        for subspecies_tag in subspecies_ls:
+        for subspecies_tag in subspecies_tags:
             subpop = get_subpop(pop, subspecies_tag)
             subpop_collabrs = select_func(subpop)
             collabr_map[(pop_num, subspecies_tag)] = subpop_collabrs
@@ -280,7 +264,7 @@ def _select_collabrs(lv_parent_pop, rb_parent_pop, subspecies_ls, select_func):
 
 
 def _single_random_collabr(subpop):
-    return [np.random.choice(subpop, size=1)]
+    return list(np.random.choice(subpop, size=1))
 
 
 def _best_and_random_collabr(subpop):
@@ -307,17 +291,18 @@ def _get_best_indiv(subpop):
     return best_indiv
 
 
-def _build_soln_set(lv_pop, rb_pop, subspecies_ls, collabr_map,
+def _build_soln_set(lv_pop, rb_pop, subspecies_tags, collabr_map,
                     inference_engine):
     soln_set = []
     pop_num_mapping = {1: lv_pop, 2: rb_pop}
     for (pop_num, pop) in pop_num_mapping.items():
-        for subspecies_tag in subspecies_ls:
+        for subspecies_tag in subspecies_tags:
             subpop = get_subpop(pop, subspecies_tag)
             if pop_num == 1:
                 collabr_pop_num = 2
             else:
                 collabr_pop_num = 1
+            # same subspecies tag, other pop
             collabrs = collabr_map[(collabr_pop_num, subspecies_tag)]
             for indiv in subpop:
                 for collabr in collabrs:
@@ -343,27 +328,36 @@ def _make_soln(first_indiv, second_indiv, inference_engine):
     return Solution(lv_indiv, rb_indiv, frbs)
 
 
-def _eval_soln_set(soln_set, env, env_perf_seed, num_perf_rollouts):
-    # farm out performance evaluation (parallelise over solns)
+def _eval_soln_set(soln_set, env, max_complexity):
+    # farm out performance evaluation to multiple processes
+    # (parallelise over solns)
     with Pool(NUM_CPUS) as pool:
-        perfs = pool.starmap(eval_perf,
+        perfs = pool.starmap(_eval_perf,
                              [(env, soln) for soln in soln_set])
     # do complexity evaluation in serial since not expensive
     complexities = [_eval_complexity(soln) for soln in soln_set]
 
-    # assign perfs and complexities to solns
-    for (perf, complexity, soln) in zip(perfs, complexities, soln_set):
-        # TODO add assertions to check bounds
-        soln.perf = perf
-        soln.complexity = complexity
-
+    _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
+                                        max_complexity)
     assign_pareto_front_ranks(soln_set)
-    assign_crowding_dists(soln_set)
+    assign_crowding_dists(soln_set, env, max_complexity)
+
+
+def _eval_perf(env, soln):
+    return env.assess_perf(soln.frbs)
 
 
 def _eval_complexity(soln):
-    # TODO fix
     return soln.frbs.calc_complexity()
+
+
+def _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
+                                        max_complexity):
+    for (perf, complexity, soln) in zip(perfs, complexities, soln_set):
+        assert env.min_perf <= perf <= env.max_perf
+        soln.perf = perf
+        assert MIN_COMPLEXITY <= complexity <= max_complexity
+        soln.complexity = complexity
 
 
 def _assign_indivs_credit(pop, soln_set):
@@ -378,121 +372,6 @@ def _assign_indivs_credit(pop, soln_set):
         # assign best case of each to indiv
         indiv.pareto_front_rank = min(pareto_front_ranks)
         indiv.crowding_dist = max(crowding_dists)
-
-
-def _do_breeding(internal_fitness_records, pop_size, num_elites, tourn_size,
-                 cross_callback, mut_callback):
-    assert pop_size % 2 == 0
-    assert 0 <= num_elites <= pop_size
-    assert (pop_size - num_elites) % 2 == 0
-
-    new_pop = []
-    elites = _select_elites(internal_fitness_records, num_elites)
-    for elite in elites:
-        new_pop.append(elite)
-    for _ in range(int((pop_size - num_elites) / 2)):
-        parent_a = _selection(internal_fitness_records, tourn_size)
-        parent_b = _selection(internal_fitness_records, tourn_size)
-        children = _crossover_and_mutate(parent_a, parent_b, cross_callback,
-                                         mut_callback)
-        for child in children:
-            new_pop.append(child)
-    assert len(new_pop) == pop_size
-    return new_pop
-
-
-def _select_elites(internal_fitness_records, num_elites):
-    fitness_desc = sorted(internal_fitness_records,
-                          key=lambda ifr: ifr.fitness,
-                          reverse=True)
-    elites = []
-    for idx in range(num_elites):
-        elites.append(fitness_desc[idx].genotype)
-    return elites
-
-
-def _selection(internal_fitness_records, tourn_size):
-    """Tournament selection"""
-    def _select_random(internal_fitness_records):
-        idx = np.random.choice(list(range(0, len(internal_fitness_records))))
-        return internal_fitness_records[idx]
-
-    best = _select_random(internal_fitness_records)
-    for _ in range(2, (tourn_size + 1)):
-        next_ = _select_random(internal_fitness_records)
-        if next_.fitness > best.fitness:
-            best = next_
-    return best.genotype
-
-
-def _crossover_and_mutate(parent_a, parent_b, cross_callback, mut_callback):
-    child_a = copy.deepcopy(parent_a)
-    child_b = copy.deepcopy(parent_b)
-    _crossover_children(child_a, child_b, cross_callback)
-    _mutate_child(child_a, mut_callback)
-    _mutate_child(child_b, mut_callback)
-    return (child_a, child_b)
-
-
-def _crossover_children(child_a, child_b, cross_callback):
-    cross_func = cross_callback["func"]
-    func_kwargs = cross_callback["kwargs"]
-    cross_func(child_a, child_b, **func_kwargs)
-
-
-def _uniform_crossover(child_a, child_b, p_cross_swap):
-    """Uniform crossover."""
-    assert len(child_a) == len(child_b)
-    for idx in range(0, len(child_a)):
-        should_swap = np.random.rand() < p_cross_swap
-        if should_swap:
-            child_a[idx], child_b[idx] = child_b[idx], child_a[idx]
-
-
-def _line_recombination(child_a, child_b, p_cross_line):
-    assert len(child_a) == len(child_b)
-    should_cross = np.random.rand() < p_cross_line
-    if should_cross:
-        alpha = np.random.rand()
-        beta = np.random.rand()
-        for idx in range(0, len(child_a)):
-            a_i = child_a[idx]
-            b_i = child_b[idx]
-            t = alpha * a_i + (1 - alpha) * b_i
-            s = beta * b_i + (1 - beta) * a_i
-            assert LV_ALLELE_MIN <= t <= LV_ALLELE_MAX
-            assert LV_ALLELE_MIN <= s <= LV_ALLELE_MAX
-            child_a[idx] = t
-            child_b[idx] = s
-
-
-def _mutate_child(child, mut_callback):
-    mut_func = mut_callback["func"]
-    func_kwargs = mut_callback["kwargs"]
-    mut_func(child, **func_kwargs)
-
-
-def _flip_mutation(child, p_mut_flip):
-    for idx in range(0, len(child)):
-        should_flip = np.random.rand() < p_mut_flip
-        if should_flip:
-            curr_val = child[idx]
-            options = {-1: (0, 2), 0: (-1, 2), 2: (-1, 0)}[curr_val]
-            new_val = np.random.choice(options)
-            child[idx] = new_val
-
-
-def _gaussian_mutation(child, sigma):
-    mu = 0.0
-    for idx in range(0, len(child)):
-        curr_val = child[idx]
-        noise = np.random.normal(loc=mu, scale=sigma)
-        new_val = curr_val + noise
-        if new_val < LV_ALLELE_MIN or new_val > LV_ALLELE_MAX:
-            # mirror the noise
-            new_val = curr_val - noise
-        assert LV_ALLELE_MIN <= new_val <= LV_ALLELE_MAX
-        child[idx] = new_val
 
 
 def _save_data(save_path, lv_gen_history, rb_gen_history, best_soln_record,

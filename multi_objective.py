@@ -1,11 +1,18 @@
 import copy
+import numpy as np
 import math
 
+MIN_DOMINATION_COUNT = 0
+MIN_PARETO_FRONT_RANK = 1
+MIN_CROWDING_DIST = 0
 
-FMIN_PERF = -200.0
-FMAX_PERF = ?
-FMIN_COMPLEXITY = 0
-FMAX_COMPLEXITY = ?
+MIN_COMPLEXITY = 0
+
+
+def calc_max_complexity(subspecies_tags):
+    max_possible_fuzzy_decision_regions = \
+        max([np.prod(subspecies_tag) for subspecies_tag in subspecies_tags])
+    return max_possible_fuzzy_decision_regions
 
 
 def assign_pareto_front_ranks(soln_set):
@@ -14,7 +21,7 @@ def assign_pareto_front_ranks(soln_set):
     front ranks of each soln."""
     _find_dominations(soln_set)
 
-    # find F1
+    # find first front
     first_front = []
     for soln in soln_set:
         if soln.domination_count == 0:
@@ -52,7 +59,7 @@ def _find_dominations(soln_set):
 
 
 def _does_dominate(soln_a, soln_b):
-    """Does soln_a dominate soln_b?
+    """Does soln_a Pareto dominate soln_b?
     To dominate soln_b, soln_a must be strictly better in at least one
     objective and no worse in all others.
 
@@ -86,24 +93,24 @@ def _is_better(objective_func, first_soln, second_soln):
         raise Exception
 
 
-def assign_crowding_dists(soln_set):
+def assign_crowding_dists(soln_set, env, max_complexity):
     soln_pfrs = [soln.pareto_front_rank for soln in soln_set]
     min_pfr = min(soln_pfrs)
     assert min_pfr == 1
     max_pfr = max(soln_pfrs)
-    for pareto_front_rank in range(min_pfr, (max_pfr + 1)):
-        pareto_front = _get_pareto_front(soln_set, pareto_front_rank)
-        _assign_crowding_dists_in_front(pareto_front)
+    for pfr in range(min_pfr, (max_pfr + 1)):
+        pareto_front = _get_pareto_front(pfr, container=soln_set)
+        _assign_crowding_dists_in_front(pareto_front, env, max_complexity)
 
 
-def _get_pareto_front(soln_set, pareto_front_rank):
+def _get_pareto_front(pareto_front_rank, container):
     return [
-        soln for soln in soln_set
-        if soln.pareto_front_rank == pareto_front_rank
+        item for item in container
+        if item.pareto_front_rank == pareto_front_rank
     ]
 
 
-def _assign_crowding_dists_in_front(pareto_front):
+def _assign_crowding_dists_in_front(pareto_front, env, max_complexity):
     """crowding-distance-assignment function from NSGA-II paper"""
     num_solns = len(pareto_front)
     for soln in pareto_front:
@@ -119,27 +126,64 @@ def _assign_crowding_dists_in_front(pareto_front):
             curr_soln = sorted_front[idx]
             neighbour_soln_left = sorted_front[idx - 1]
             neighbour_soln_right = sorted_front[idx + 1]
-            fmax = _get_fmax(objective_func)
-            fmin = _get_fmin(objective_func)
+            fmax = _get_fmax(objective_func, env, max_complexity)
+            fmin = _get_fmin(objective_func, env)
             curr_soln.crowding_dist += \
                 (objective_func(neighbour_soln_right) -
                     objective_func(neighbour_soln_left)) / \
                 (fmax - fmin)
 
 
-def _get_fmax(objective_func):
+def _get_fmax(objective_func, env, max_complexity):
     if objective_func == _perf_objective:
-        return FMAX_PERF
+        return env.max_perf
     elif objective_func == _complexity_objective:
-        return FMAX_COMPLEXITY
+        return max_complexity
     else:
         raise Exception
 
 
-def _get_fmin(objective_func):
+def _get_fmin(objective_func, env):
     if objective_func == _perf_objective:
-        return FMIN_PERF
+        return env.min_perf
     elif objective_func == _complexity_objective:
-        return FMIN_COMPLEXITY
+        return MIN_COMPLEXITY
     else:
         raise Exception
+
+
+def select_parent_pop(pop, parent_pop_size):
+    """NSGA-II style selection of parents: first sort by pareto front rank then
+    sort by crowding dist for last front that can't fit fully in parent pop."""
+    assert len(pop) == 2*parent_pop_size  # pop is old parent pop + child pop
+    pfrs = [indiv.pareto_front_rank for indiv in pop]
+    min_pfr = min(pfrs)
+    max_pfr = max(pfrs)
+
+    curr_pfr = min_pfr
+    parent_pop = []
+    while not _parent_pop_is_full(parent_pop, parent_pop_size):
+        pareto_front = _get_pareto_front(curr_pfr, container=pop)
+        parent_pop_slots_remaining = (parent_pop_size - len(parent_pop))
+        front_fully_fits = (len(pareto_front) <= parent_pop_slots_remaining)
+        if front_fully_fits:
+            parent_pop.extend(pareto_front)
+        else:
+            crowding_dist_sorted_desc = sorted(pareto_front,
+                                               key=lambda indiv:
+                                               indiv.crowding_dist,
+                                               reverse=True)
+            indivs_to_add = \
+                crowding_dist_sorted_desc[0:parent_pop_slots_remaining]
+            parent_pop.extend(indivs_to_add)
+        curr_pfr += 1
+        assert curr_pfr <= max_pfr
+    assert len(parent_pop) == parent_pop_size
+    return parent_pop
+
+
+def _parent_pop_is_full(parent_pop, parent_pop_size):
+    return len(parent_pop) == parent_pop_size
+
+
+def crowded_comparison_operator()
