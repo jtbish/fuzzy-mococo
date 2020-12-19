@@ -20,18 +20,16 @@ from solution import Solution
 from zadeh.rule_base import FuzzyRuleBase
 from subspecies import (parse_subspecies_tag, validate_subspecies_tags,
                         make_pop_init_pmfs, get_subpop)
-
 from lv_genotype import make_lv_indiv, make_ling_vars
 from multi_objective import (assign_crowding_dists, assign_pareto_front_ranks,
-                             MIN_COMPLEXITY, calc_max_complexity)
+                             MIN_COMPLEXITY, calc_soln_perf,
+                             calc_soln_complexity, calc_max_complexity,
+                             select_parent_pop)
 from rb_genotype import make_rb_indiv, make_rule_base
-from util import (ACTION_SET, NORMALISE_OBSS, RB_ALLELE_SET,
-                  USE_DEFAULT_ACTION_SET, calc_lv_joint_fitness_records,
-                  calc_rb_joint_fitness_records, eval_perf,
-                  flatten_joint_fitness_mats, make_best_soln_record, make_frbs,
-                  make_inference_engine, make_internal_fitness_records)
+from util import make_inference_engine, make_frbs, PopRecord
+from ga import run_lv_ga, run_rb_ga
 
-NUM_CPUS = int(os.environ['SLURM_JOB_CPUS_PER_NODE'])
+_NUM_CPUS = int(os.environ['SLURM_JOB_CPUS_PER_NODE'])
 
 
 def parse_args():
@@ -84,10 +82,15 @@ def main(args):
     lv_child_pop = []
     rb_child_pop = []
 
-    soln_set = []
-    lv_gen_history = {}
-    rb_gen_history = {}
-    max_soln_complexity = calc_max_complexity(subspecies_tags)
+    lv_pops_history = {}
+    rb_pops_history = {}
+    soln_set_history = {}
+
+    # need to calc max complexity at start to ensure it is based off the
+    # *starting* subspecies tags
+    max_complexity = calc_max_complexity(subspecies_tags)
+    soln_set = None
+
     for gen_num in range(args.num_gens + 1):
         lv_comb_pop = lv_parent_pop + lv_child_pop
         rb_comb_pop = rb_parent_pop + rb_child_pop
@@ -99,7 +102,7 @@ def main(args):
             soln_set = _build_soln_set(lv_parent_pop, rb_parent_pop,
                                        subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, env, max_soln_complexity)
+            _eval_soln_set(soln_set, env, max_complexity)
             _assign_indivs_credit(lv_parent_pop, soln_set)
             _assign_indivs_credit(rb_parent_pop, soln_set)
         else:
@@ -110,7 +113,7 @@ def main(args):
             soln_set = _build_soln_set(lv_child_pop, rb_child_pop,
                                        subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, env, max_soln_complexity)
+            _eval_soln_set(soln_set, env, max_complexity)
             _assign_indivs_credit(lv_child_pop, soln_set)
             _assign_indivs_credit(rb_child_pop, soln_set)
 
@@ -130,9 +133,16 @@ def main(args):
                                  child_pop_size=args.rb_pop_size,
                                  tourn_size=args.rb_tourn_size,
                                  p_cross_swap=args.p_cross_swap,
-                                 p_mut_flip=args.p_mut_flip)
+                                 p_mut_flip=args.p_mut_flip,
+                                 inference_engine=inference_engine)
 
-    _save_data(save_path, lv_gen_history, rb_gen_history, best_soln_record,
+        _update_pops_history(lv_pops_history, lv_parent_pop, lv_child_pop,
+                             gen_num)
+        _update_pops_history(rb_pops_history, rb_parent_pop, rb_child_pop,
+                             gen_num)
+        _update_soln_set_history(soln_set_history, soln_set, gen_num)
+
+    _save_data(save_path, lv_pops_history, rb_pops_history, soln_set_history,
                args)
 
 
@@ -185,14 +195,14 @@ def _sample_subspecies_tags(pop_size, subspecies_init_pmf):
                             p=list(subspecies_init_pmf.values()))
 
 
-def _make_lv_phenotypes(lv_pop, env):
-    for indiv in lv_pop:
+def _make_lv_phenotypes(lv_comb_pop, env):
+    for indiv in lv_comb_pop:
         indiv.phenotype = make_ling_vars(indiv.subspecies_tag, indiv.genotype,
                                          env)
 
 
-def _make_rb_phenotypes(rb_pop, inference_engine):
-    for indiv in rb_pop:
+def _make_rb_phenotypes(rb_comb_pop, inference_engine):
+    for indiv in rb_comb_pop:
         indiv.phenotype = make_rule_base(indiv.subspecies_tag, indiv.genotype,
                                          inference_engine)
 
@@ -331,24 +341,16 @@ def _make_soln(first_indiv, second_indiv, inference_engine):
 def _eval_soln_set(soln_set, env, max_complexity):
     # farm out performance evaluation to multiple processes
     # (parallelise over solns)
-    with Pool(NUM_CPUS) as pool:
-        perfs = pool.starmap(_eval_perf,
-                             [(env, soln) for soln in soln_set])
+    with Pool(_NUM_CPUS) as pool:
+        perfs = pool.starmap(calc_soln_perf,
+                             [(soln, env) for soln in soln_set])
     # do complexity evaluation in serial since not expensive
-    complexities = [_eval_complexity(soln) for soln in soln_set]
+    complexities = [calc_soln_complexity(soln) for soln in soln_set]
 
     _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
                                         max_complexity)
     assign_pareto_front_ranks(soln_set)
     assign_crowding_dists(soln_set, env, max_complexity)
-
-
-def _eval_perf(env, soln):
-    return env.assess_perf(soln.frbs)
-
-
-def _eval_complexity(soln):
-    return soln.frbs.calc_complexity()
 
 
 def _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
@@ -374,14 +376,22 @@ def _assign_indivs_credit(pop, soln_set):
         indiv.crowding_dist = max(crowding_dists)
 
 
-def _save_data(save_path, lv_gen_history, rb_gen_history, best_soln_record,
+def _update_pops_history(pops_history, parent_pop, child_pop, gen_num):
+    pops_history[gen_num] = PopRecord(parents=parent_pop, children=child_pop)
+
+
+def _update_soln_set_history(soln_set_history, soln_set, gen_num):
+    soln_set_history[gen_num] = soln_set
+
+
+def _save_data(save_path, lv_pops_history, rb_pops_history, soln_set_history,
                args):
-    with open(save_path / "lv_gen_history.pkl", "wb") as fp:
-        pickle.dump(lv_gen_history, fp)
-    with open(save_path / "rb_gen_history.pkl", "wb") as fp:
-        pickle.dump(rb_gen_history, fp)
-    with open(save_path / "best.pkl", "wb") as fp:
-        pickle.dump(best_soln_record, fp)
+    with open(save_path / "lv_pops_history.pkl", "wb") as fp:
+        pickle.dump(lv_pops_history, fp)
+    with open(save_path / "rb_pops_history.pkl", "wb") as fp:
+        pickle.dump(rb_pops_history, fp)
+    with open(save_path / "soln_set_history.pkl", "wb") as fp:
+        pickle.dump(soln_set_history, fp)
     with open(save_path / "var_args.txt", "w") as fp:
         fp.write(str(args))
     _save_python_env_info(save_path)

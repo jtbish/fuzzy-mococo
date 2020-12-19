@@ -7,7 +7,6 @@ from zadeh.antecedent import CNFAntecedent
 from zadeh.constants import CONSEQUENT_MAX, CONSEQUENT_MIN
 from zadeh.rule import FuzzyRule
 from zadeh.rule_base import FuzzyRuleBase
-from subspecies import calc_num_rb_genes
 from indiv import Indiv
 
 # housekeeping nt used for doing merges, not the actual CNF rule
@@ -18,19 +17,23 @@ RuleRecord = namedtuple("RuleRecord", ["antecedent", "consequent"])
 UNSPECIFIED_ALLELE = -1
 
 
+def calc_num_rb_genes(subspecies_tag):
+    return np.prod(subspecies_tag)
+
+
 def make_rb_indiv(subspecies_tag, inference_engine):
     num_genes_needed = calc_num_rb_genes(subspecies_tag)
-    possible_alleles = _get_possible_alleles(inference_engine)
+    possible_alleles = get_possible_rb_alleles(inference_engine)
     genotype = np.random.choice(possible_alleles, size=num_genes_needed)
     return Indiv(subspecies_tag, genotype)
 
 
-def _get_possible_alleles(inference_engine):
+def get_possible_rb_alleles(inference_engine):
     return [UNSPECIFIED_ALLELE] + list(inference_engine.class_labels)
 
 
 def make_rule_base(subspecies_tag, genotype, inference_engine):
-    possible_alleles = _get_possible_alleles(inference_engine)
+    possible_alleles = get_possible_rb_alleles(inference_engine)
     rule_records = _make_rule_records(subspecies_tag, genotype,
                                       possible_alleles)
     rules = _make_rules(rule_records, inference_engine)

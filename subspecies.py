@@ -1,9 +1,10 @@
 import argparse
 import math
 
-import numpy as np
+from lv_genotype import calc_num_lv_genes
+from rb_genotype import calc_num_rb_genes
 
-_MIN_NUM_MFS = 3
+_MIN_NUM_MFS = 2
 
 
 def parse_subspecies_tag(string):
@@ -42,19 +43,6 @@ def make_pop_init_pmfs(subspecies_tags):
     assert math.isclose(sum(lv_init_pmf.values()), pmf_sum)
     assert math.isclose(sum(rb_init_pmf.values()), pmf_sum)
     return (lv_init_pmf, rb_init_pmf)
-
-
-def calc_num_lv_genes(subspecies_tag):
-    return sum([calc_num_genes_for_mfs(num_mfs) for num_mfs in
-               subspecies_tag])
-
-
-def calc_num_genes_for_mfs(num_mfs):
-    return num_mfs - 2
-
-
-def calc_num_rb_genes(subspecies_tag):
-    return np.prod(subspecies_tag)
 
 
 def get_subpop(pop, subspecies_tag):

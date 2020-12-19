@@ -1,12 +1,25 @@
 import copy
 import numpy as np
 import math
+from zadeh.error import UndefinedMappingError
 
 MIN_DOMINATION_COUNT = 0
 MIN_PARETO_FRONT_RANK = 1
 MIN_CROWDING_DIST = 0
 
 MIN_COMPLEXITY = 0
+
+
+def calc_soln_perf(soln, env):
+    try:
+        return env.assess_perf(soln.frbs)
+    except UndefinedMappingError:
+        # hole in the frbs, use min perf
+        return env.min_perf
+
+
+def calc_soln_complexity(soln):
+    return soln.frbs.calc_complexity()
 
 
 def calc_max_complexity(subspecies_tags):
@@ -65,7 +78,8 @@ def _does_dominate(soln_a, soln_b):
 
     Essentials of Metaheuristics Alg. 98: Pareto Domination"""
     res = False
-    for objective_func in (_perf_objective, _complexity_objective):
+    for objective_func in (_perf_objective, _complexity_objective,
+                           _coverage_objective):
         if _is_better(objective_func, soln_a, soln_b):
             res = True
         elif _is_better(objective_func, soln_b, soln_a):
@@ -153,8 +167,9 @@ def _get_fmin(objective_func, env):
 
 
 def select_parent_pop(pop, parent_pop_size):
-    """NSGA-II style selection of parents: first sort by pareto front rank then
-    sort by crowding dist for last front that can't fit fully in parent pop."""
+    """NSGA-II style selection of candidate parents: first sort by pareto front
+    rank then sort by crowding dist for last front that can't fit fully in
+    parent pop."""
     assert len(pop) == 2*parent_pop_size  # pop is old parent pop + child pop
     pfrs = [indiv.pareto_front_rank for indiv in pop]
     min_pfr = min(pfrs)
@@ -186,4 +201,15 @@ def _parent_pop_is_full(parent_pop, parent_pop_size):
     return len(parent_pop) == parent_pop_size
 
 
-def crowded_comparison_operator()
+def crowded_comparison_operator(indiv_a, indiv_b):
+    """NSGA-II crowded comparison operator: determines whether indiv_a is
+    'better than' indiv_b in relation to Pareto front rank and crowding
+    dist."""
+    if indiv_a.pareto_front_rank < indiv_b.pareto_front_rank:
+        return True
+    elif indiv_a.pareto_front_rank == indiv_b.pareto_front_rank:
+        return indiv_a.crowding_dist > indiv_b.crowding_dist
+    elif indiv_a.pareto_front_rank < indiv_b.pareto_front_rank:
+        return False
+    else:
+        raise Exception
