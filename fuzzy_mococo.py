@@ -49,7 +49,6 @@ def parse_args():
     parser.add_argument("--lv-pop-size", type=int, required=True)
     parser.add_argument("--rb-pop-size", type=int, required=True)
     parser.add_argument("--num-gens", type=int, required=True)
-    parser.add_argument("--num-collabrs", type=int, required=True)
     parser.add_argument("--lv-tourn-size", type=int, required=True)
     parser.add_argument("--rb-tourn-size", type=int, required=True)
     parser.add_argument("--p-cross-line", type=float, required=True)
