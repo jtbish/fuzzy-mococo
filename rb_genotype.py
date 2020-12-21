@@ -67,12 +67,12 @@ def _make_rule_records(subspecies_tag, genotype, possible_alleles):
 def _make_rule_record_antecedent(mf_idx_combo, subspecies_tag):
     antecedent = []
     for (spec_mf_idx, num_mfs) in zip(mf_idx_combo, subspecies_tag):
-        binary_mf_activation_mask = [
+        binary_mf_usage_mask = [
             1 if spec_mf_idx == mf_idx else 0
             for mf_idx in range(0, num_mfs)
         ]
-        assert binary_mf_activation_mask.count(1) == 1
-        antecedent.append(binary_mf_activation_mask)
+        assert binary_mf_usage_mask.count(1) == 1
+        antecedent.append(binary_mf_usage_mask)
     return antecedent
 
 

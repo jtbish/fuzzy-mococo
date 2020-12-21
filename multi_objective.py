@@ -78,8 +78,7 @@ def _does_dominate(soln_a, soln_b):
 
     Essentials of Metaheuristics Alg. 98: Pareto Domination"""
     res = False
-    for objective_func in (_perf_objective, _complexity_objective,
-                           _coverage_objective):
+    for objective_func in (_perf_objective, _complexity_objective):
         if _is_better(objective_func, soln_a, soln_b):
             res = True
         elif _is_better(objective_func, soln_b, soln_a):
@@ -170,7 +169,6 @@ def select_parent_pop(pop, parent_pop_size):
     """NSGA-II style selection of candidate parents: first sort by pareto front
     rank then sort by crowding dist for last front that can't fit fully in
     parent pop."""
-    assert len(pop) == 2*parent_pop_size  # pop is old parent pop + child pop
     pfrs = [indiv.pareto_front_rank for indiv in pop]
     min_pfr = min(pfrs)
     max_pfr = max(pfrs)

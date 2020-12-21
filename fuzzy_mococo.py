@@ -61,6 +61,7 @@ def parse_args():
 def main(args):
     save_path = _setup_save_path(args.experiment_name)
     _setup_logging(save_path)
+    logging.info(str(args))
 
     np.random.seed(args.seed)
 
@@ -116,6 +117,8 @@ def main(args):
             _assign_indivs_credit(lv_child_pop, soln_set)
             _assign_indivs_credit(rb_child_pop, soln_set)
 
+        _update_soln_set_history(soln_set_history, soln_set, gen_num)
+
         # do parent selection then breeding for both pops
         lv_comb_pop = lv_parent_pop + lv_child_pop
         rb_comb_pop = rb_parent_pop + rb_child_pop
@@ -139,7 +142,6 @@ def main(args):
                              gen_num)
         _update_pops_history(rb_pops_history, rb_parent_pop, rb_child_pop,
                              gen_num)
-        _update_soln_set_history(soln_set_history, soln_set, gen_num)
 
     _save_data(save_path, lv_pops_history, rb_pops_history, soln_set_history,
                args)
@@ -242,6 +244,7 @@ def _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
         r2_sigma = get_subpop(r2, subspecies_tag)
         if len(r1_sigma) == 0 and len(r2_sigma) == 0:
             subspecies_tags.remove(subspecies_tag)
+            logging.info(f"Subspecies {subspecies_tag} is now extinct")
 
 
 def _select_init_collabrs(lv_parent_pop, rb_parent_pop, subspecies_tags):
