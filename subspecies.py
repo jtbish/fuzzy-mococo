@@ -7,11 +7,15 @@ from rb_genotype import calc_num_rb_genes
 _MIN_NUM_MFS = 2
 
 
-def parse_subspecies_tag(string):
+def parse_subspecies_tags(string):
     try:
-        return tuple(int(num_mfs) for num_mfs in string.split(","))
+        tags = string.split(" ")
+        res = []
+        for tag in tags:
+            res.append(tuple(int(num_mfs) for num_mfs in tag.split(",")))
+        return res
     except:
-        raise argparse.ArgumentTypeError()
+        raise argparse.ArgumentTypeError(string)
 
 
 def validate_subspecies_tags(subspecies_tags, env):

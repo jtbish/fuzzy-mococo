@@ -46,6 +46,6 @@ def get_possibly_null_attr(obj, attr_name):
     # accessing null attr should never be done so raise an error that will be
     # unhandled if it is
     if attr is None:
-        raise ValueError
+        raise ValueError("attr is null")
     else:
         return attr

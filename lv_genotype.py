@@ -28,15 +28,16 @@ def make_lv_indiv(subspecies_tag):
 
 
 def make_ling_vars(subspecies_tag, genotype, env):
-    num_genes_for_mfs = [calc_num_genes_for_mfs(num_mfs) for num_mfs in
-                         subspecies_tag]
-    _validate_genotype(genotype, num_genes_for_mfs)
+    num_genes_for_mfss = [calc_num_genes_for_mfs(num_mfs) for num_mfs in
+                          subspecies_tag]
+    _validate_genotype(genotype, num_genes_for_mfss)
 
     # build the ling vars by using appropriate genes for each
     ling_vars = []
     genotype_start_idx = 0
-    for (obs_space_idx, num_genes_for_mf) in enumerate(num_genes_for_mfs):
-        genotype_end_idx_excl = (genotype_start_idx + num_genes_for_mf)
+    for (obs_space_idx, (num_genes_for_mfs, num_mfs)) in \
+            enumerate(zip(num_genes_for_mfss, subspecies_tag)):
+        genotype_end_idx_excl = (genotype_start_idx + num_genes_for_mfs)
         genes = genotype[genotype_start_idx:genotype_end_idx_excl]
         ling_vars.append(_make_ling_var(genes, num_mfs, env, obs_space_idx))
         genotype_start_idx = genotype_end_idx_excl
@@ -45,10 +46,10 @@ def make_ling_vars(subspecies_tag, genotype, env):
     return tuple(ling_vars)
 
 
-def _validate_genotype(genotype, num_genes_for_mfs):
+def _validate_genotype(genotype, num_genes_for_mfss):
     for allele in genotype:
         assert LV_ALLELE_MIN <= allele <= LV_ALLELE_MAX
-    assert sum(num_genes_for_mfs) == len(genotype)
+    assert sum(num_genes_for_mfss) == len(genotype)
 
 
 def _make_ling_var(genes, num_mfs, env, obs_space_idx):

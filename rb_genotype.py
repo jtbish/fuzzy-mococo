@@ -1,4 +1,5 @@
 import copy
+import logging
 import numpy as np
 import itertools
 from collections import namedtuple
@@ -8,6 +9,7 @@ from zadeh.constants import CONSEQUENT_MAX, CONSEQUENT_MIN
 from zadeh.rule import FuzzyRule
 from zadeh.rule_base import FuzzyRuleBase
 from indiv import Indiv
+from multi_objective import MIN_COMPLEXITY
 
 # housekeeping nt used for doing merges, not the actual CNF rule
 # antecedent is binary activation mask for feature mfs, consequent is the
@@ -21,10 +23,21 @@ def calc_num_rb_genes(subspecies_tag):
     return np.prod(subspecies_tag)
 
 
-def make_rb_indiv(subspecies_tag, inference_engine):
+def make_rb_indiv(subspecies_tag, inference_engine,
+                  p_unspec_allele):
+    assert 0 < p_unspec_allele < 1
+    p_remainder = (1 - p_unspec_allele)
+    init_probs = {}
+    init_probs[UNSPECIFIED_ALLELE] = p_unspec_allele
+    other_alleles = inference_engine.class_labels
+    num_other_alleles = len(other_alleles)
+    for other_allele in other_alleles:
+        init_probs[other_allele] = p_remainder / num_other_alleles
     num_genes_needed = calc_num_rb_genes(subspecies_tag)
-    possible_alleles = get_possible_rb_alleles(inference_engine)
-    genotype = np.random.choice(possible_alleles, size=num_genes_needed)
+    genotype = np.random.choice(a=list(init_probs.keys()),
+                                size=num_genes_needed,
+                                p=list(init_probs.values()))
+    repair_rb_genotype_if_needed(genotype, inference_engine)
     return Indiv(subspecies_tag, genotype)
 
 
@@ -177,3 +190,35 @@ def _make_consequent(class_labels, selected_label):
         else:
             consequent[class_label] = CONSEQUENT_MIN
     return consequent
+
+
+def repair_rb_genotype_if_needed(genotype, inference_engine):
+    complexity = _calc_genotype_complexity(genotype)
+    is_invalid = complexity < MIN_COMPLEXITY
+    if is_invalid:
+        orig_genotype = copy.deepcopy(genotype)
+        _repair_rb_genotype(genotype, inference_engine, complexity)
+        logging.debug(f"Repaired invalid rb genotype: {orig_genotype} -> "
+                      f"{genotype}")
+
+
+def _calc_genotype_complexity(genotype):
+    return len([allele for allele in genotype if allele !=
+               UNSPECIFIED_ALLELE])
+
+
+def _repair_rb_genotype(genotype, inference_engine, complexity):
+    num_alleles_to_repair = (MIN_COMPLEXITY - complexity)
+    unspec_allele_idxs = [idx for (idx, allele) in enumerate(genotype) if
+                          allele == UNSPECIFIED_ALLELE]
+    idxs_to_repair = np.random.choice(unspec_allele_idxs,
+                                      size=num_alleles_to_repair,
+                                      replace=False)
+    for idx_to_repair in idxs_to_repair:
+        _repair_allele(genotype, idx_to_repair, inference_engine)
+
+
+def _repair_allele(genotype, idx_to_repair, inference_engine):
+    assert genotype[idx_to_repair] == UNSPECIFIED_ALLELE
+    specified_alleles = inference_engine.class_labels
+    genotype[idx_to_repair] = np.random.choice(specified_alleles)

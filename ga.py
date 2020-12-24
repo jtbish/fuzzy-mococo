@@ -1,17 +1,23 @@
-import numpy as np
 import copy
-from lv_genotype import LV_ALLELE_MIN, LV_ALLELE_MAX
-from rb_genotype import get_possible_rb_alleles
-from multi_objective import crowded_comparison_operator
-from subspecies import get_subpop
+import logging
+
+import numpy as np
+
 from indiv import Indiv
+from lv_genotype import LV_ALLELE_MAX, LV_ALLELE_MIN
+from multi_objective import crowded_comparison_operator
+from rb_genotype import get_possible_rb_alleles, repair_rb_genotype_if_needed
+from subspecies import get_subpop
 
 _GAUSSIAN_MUTATION_MU = 0.0
 
 
 def run_lv_ga(lv_parent_pop, child_pop_size, tourn_size, p_cross_line,
               mut_sigma):
-    return _run_ga(lv_parent_pop, child_pop_size, tourn_size,
+    logging.info("Running lv ga")
+    return _run_ga(lv_parent_pop,
+                   child_pop_size,
+                   tourn_size,
                    cross_callback={
                        "func": _line_recombination,
                        "kwargs": {
@@ -26,21 +32,23 @@ def run_lv_ga(lv_parent_pop, child_pop_size, tourn_size, p_cross_line,
                    })
 
 
-def run_rb_ga(rb_parent_pop, child_pop_size, tourn_size, p_cross_swap,
-              p_mut_flip, inference_engine):
-    possible_rb_alleles = get_possible_rb_alleles(inference_engine)
-    return _run_ga(rb_parent_pop, child_pop_size, tourn_size,
+def run_rb_ga(rb_parent_pop, child_pop_size, tourn_size, cross_swap_mult,
+              mut_flip_mult, inference_engine):
+    logging.info("Running rb ga")
+    return _run_ga(rb_parent_pop,
+                   child_pop_size,
+                   tourn_size,
                    cross_callback={
                        "func": _uniform_crossover,
                        "kwargs": {
-                           "p_cross_swap": p_cross_swap
+                           "cross_swap_mult": cross_swap_mult
                        }
                    },
                    mut_callback={
                        "func": _flip_mutation,
                        "kwargs": {
-                           "p_mut_flip": p_mut_flip,
-                           "possible_rb_alleles":  possible_rb_alleles
+                           "mut_flip_mult": mut_flip_mult,
+                           "inference_engine": inference_engine
                        }
                    })
 
@@ -104,9 +112,12 @@ def _crossover_children(child_a_genotype, child_b_genotype, cross_callback):
     cross_func(child_a_genotype, child_b_genotype, **func_kwargs)
 
 
-def _uniform_crossover(child_a_genotype, child_b_genotype, p_cross_swap):
+def _uniform_crossover(child_a_genotype, child_b_genotype, cross_swap_mult):
     assert len(child_a_genotype) == len(child_b_genotype)
-    for idx in range(0, len(child_a_genotype)):
+    num_genes = len(child_a_genotype)
+    assert 1 <= cross_swap_mult <= num_genes
+    p_cross_swap = cross_swap_mult * (1 / num_genes)
+    for idx in range(0, num_genes):
         should_swap = np.random.rand() < p_cross_swap
         if should_swap:
             child_a_genotype[idx], child_b_genotype[idx] = \
@@ -114,6 +125,7 @@ def _uniform_crossover(child_a_genotype, child_b_genotype, p_cross_swap):
 
 
 def _line_recombination(child_a_genotype, child_b_genotype, p_cross_line):
+    """Essentials of Metaheuristics Algorithm 28."""
     assert len(child_a_genotype) == len(child_b_genotype)
     should_cross = np.random.rand() < p_cross_line
     if should_cross:
@@ -136,9 +148,13 @@ def _mutate_child(child_genotype, mut_callback):
     mut_func(child_genotype, **func_kwargs)
 
 
-def _flip_mutation(child_genotype, p_mut_flip, possible_rb_alleles):
+def _flip_mutation(child_genotype, mut_flip_mult, inference_engine):
+    possible_rb_alleles = get_possible_rb_alleles(inference_engine)
     flip_map = _build_flip_map(possible_rb_alleles)
-    for idx in range(0, len(child_genotype)):
+    num_genes = len(child_genotype)
+    assert 1 <= mut_flip_mult <= num_genes
+    p_mut_flip = mut_flip_mult * (1 / num_genes)
+    for idx in range(0, num_genes):
         should_flip = np.random.rand() < p_mut_flip
         if should_flip:
             curr_val = child_genotype[idx]
@@ -146,13 +162,15 @@ def _flip_mutation(child_genotype, p_mut_flip, possible_rb_alleles):
             # all options equally weighted
             new_val = np.random.choice(flip_options)
             child_genotype[idx] = new_val
+    repair_rb_genotype_if_needed(child_genotype, inference_engine)
 
 
 def _build_flip_map(possible_rb_alleles):
     flip_map = {}
     for curr_allele in possible_rb_alleles:
-        other_alleles = copy.deepcopy(possible_rb_alleles)
-        other_alleles.remove(curr_allele)
+        other_alleles = [
+            allele for allele in possible_rb_alleles if allele != curr_allele
+        ]
         flip_map[curr_allele] = other_alleles
     return flip_map
 

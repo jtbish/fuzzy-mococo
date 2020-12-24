@@ -1,5 +1,6 @@
 from util import get_possibly_null_attr
 from multi_objective import MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST
+from object_creation import get_next_indiv_id
 
 
 class Indiv:
@@ -10,6 +11,7 @@ class Indiv:
         self._phenotype = None
         self._pareto_front_rank = None
         self._crowding_dist = None
+        self._indiv_id = get_next_indiv_id()
 
     @property
     def subspecies_tag(self):
@@ -21,7 +23,7 @@ class Indiv:
 
     @property
     def phenotype(self):
-        get_possibly_null_attr(self, "_phenotype")
+        return get_possibly_null_attr(self, "_phenotype")
 
     @phenotype.setter
     def phenotype(self, val):
@@ -29,7 +31,7 @@ class Indiv:
 
     @property
     def pareto_front_rank(self):
-        get_possibly_null_attr(self, "_pareto_front_rank")
+        return get_possibly_null_attr(self, "_pareto_front_rank")
 
     @pareto_front_rank.setter
     def pareto_front_rank(self, val):
@@ -38,7 +40,7 @@ class Indiv:
 
     @property
     def crowding_dist(self):
-        get_possibly_null_attr(self, "_crowding_dist")
+        return get_possibly_null_attr(self, "_crowding_dist")
 
     @crowding_dist.setter
     def crowding_dist(self, val):
@@ -46,6 +48,6 @@ class Indiv:
         self._crowding_dist = val
 
     def __eq__(self, other):
-        # use id for equality because may have duplicate genotypes generated
-        # but want each new genotype created to be its own indiv
-        return id(self) == id(other)
+        # use global indiv id for equality because may have duplicate genotypes
+        # generated but want each new genotype created to be its own indiv
+        return self._indiv_id == other._indiv_id

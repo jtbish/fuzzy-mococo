@@ -1,6 +1,7 @@
 from util import get_possibly_null_attr
 from multi_objective import (MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST,
                              MIN_DOMINATION_COUNT)
+from object_creation import get_next_soln_id
 
 
 class Solution:
@@ -17,6 +18,7 @@ class Solution:
         self._crowding_dist = None
         self._domination_count = None
         self._dominated_set = None
+        self._soln_id = get_next_soln_id()
 
     @property
     def lv_indiv(self):
@@ -36,7 +38,7 @@ class Solution:
 
     @property
     def perf(self):
-        get_possibly_null_attr(self, "_perf")
+        return get_possibly_null_attr(self, "_perf")
 
     @perf.setter
     def perf(self, val):
@@ -44,7 +46,7 @@ class Solution:
 
     @property
     def complexity(self):
-        get_possibly_null_attr(self, "_complexity")
+        return get_possibly_null_attr(self, "_complexity")
 
     @complexity.setter
     def complexity(self, val):
@@ -52,7 +54,7 @@ class Solution:
 
     @property
     def pareto_front_rank(self):
-        get_possibly_null_attr(self, "_pareto_front_rank")
+        return get_possibly_null_attr(self, "_pareto_front_rank")
 
     @pareto_front_rank.setter
     def pareto_front_rank(self, val):
@@ -61,7 +63,7 @@ class Solution:
 
     @property
     def crowding_dist(self):
-        get_possibly_null_attr(self, "_crowding_dist")
+        return get_possibly_null_attr(self, "_crowding_dist")
 
     @crowding_dist.setter
     def crowding_dist(self, val):
@@ -71,7 +73,7 @@ class Solution:
     @property
     def domination_count(self):
         """Number of solns *this soln is dominated by*"""
-        get_possibly_null_attr(self, "_domination_count")
+        return get_possibly_null_attr(self, "_domination_count")
 
     @domination_count.setter
     def domination_count(self, val):
@@ -81,7 +83,7 @@ class Solution:
     @property
     def dominated_set(self):
         """The set of solns that *this soln dominates*"""
-        get_possibly_null_attr(self, "_dominated_set")
+        return get_possibly_null_attr(self, "_dominated_set")
 
     @dominated_set.setter
     def dominated_set(self, val):
@@ -91,6 +93,7 @@ class Solution:
         return indiv == self._lv_indiv or indiv == self._rb_indiv
 
     def __eq__(self, other):
-        # use id for equality because may have duplicate indiv genotypes
-        # contained in two solns but want to treat them as separate solns
-        return id(self) == id(other)
+        # use global soln id for equality because may have duplicate indiv
+        # genotypes contained in two solns but want to treat them as separate
+        # solns
+        return self._soln_id == other._soln_id
