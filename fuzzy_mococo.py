@@ -405,10 +405,9 @@ def _eval_soln_set(soln_set, env, max_complexity):
     logging.info("Evaling soln perfs")
     # farm out performance evaluation to multiple processes
     # (parallelise over solns)
-#    with Pool(_NUM_CPUS) as pool:
-#        perfs = pool.starmap(calc_soln_perf,
-#                             [(soln, env) for soln in soln_set])
-    perfs = [calc_soln_perf(soln, env) for soln in soln_set]
+    with Pool(_NUM_CPUS) as pool:
+        perfs = pool.starmap(calc_soln_perf,
+                             [(soln, env) for soln in soln_set])
     # do complexity evaluation in serial since not expensive
     logging.info("Evaling soln complexities")
     complexities = [calc_soln_complexity(soln) for soln in soln_set]
