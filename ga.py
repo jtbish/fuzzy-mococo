@@ -7,16 +7,17 @@ from indiv import Indiv
 from lv_genotype import LV_ALLELE_MAX, LV_ALLELE_MIN
 from multi_objective import crowded_comparison_operator
 from rb_genotype import get_possible_rb_alleles, repair_rb_genotype_if_needed
-from subspecies import get_subpop
+from subspecies import get_subpop, sample_subspecies_tag
 
 _GAUSSIAN_MUTATION_MU = 0.0
 
 
-def run_lv_ga(lv_parent_pop, child_pop_size, tourn_size, p_cross_line,
-              mut_sigma):
+def run_lv_ga(lv_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
+              p_cross_line, mut_sigma):
     logging.info("Running lv ga")
     return _run_ga(lv_parent_pop,
                    child_pop_size,
+                   subspecies_pmf,
                    tourn_size,
                    cross_callback={
                        "func": _line_recombination,
@@ -32,11 +33,13 @@ def run_lv_ga(lv_parent_pop, child_pop_size, tourn_size, p_cross_line,
                    })
 
 
-def run_rb_ga(rb_parent_pop, child_pop_size, tourn_size, cross_swap_mult,
-              mut_flip_mult, inference_engine):
+def run_rb_ga(rb_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
+              cross_swap_mult, mut_flip_mult,
+              inference_engine):
     logging.info("Running rb ga")
     return _run_ga(rb_parent_pop,
                    child_pop_size,
+                   subspecies_pmf,
                    tourn_size,
                    cross_callback={
                        "func": _uniform_crossover,
@@ -53,14 +56,16 @@ def run_rb_ga(rb_parent_pop, child_pop_size, tourn_size, cross_swap_mult,
                    })
 
 
-def _run_ga(parent_pop, child_pop_size, tourn_size, cross_callback,
-            mut_callback):
+def _run_ga(parent_pop, child_pop_size, subspecies_pmf, tourn_size,
+            cross_callback, mut_callback):
     """Vanilla GA with parametrised crossover and mutation funcs."""
     assert child_pop_size % 2 == 0
     child_pop = []
     for _ in range(int(child_pop_size / 2)):
-        parent_a = _first_selection(parent_pop, tourn_size)
-        parent_b = _second_selection(parent_pop, tourn_size, parent_a)
+        subspecies_tag = sample_subspecies_tag(subspecies_pmf)
+        subpop = get_subpop(parent_pop, subspecies_tag)
+        parent_a = _tournament_selection(subpop, tourn_size)
+        parent_b = _tournament_selection(subpop, tourn_size)
         children = _crossover_and_mutate(parent_a, parent_b, cross_callback,
                                          mut_callback)
         for child in children:
@@ -69,24 +74,12 @@ def _run_ga(parent_pop, child_pop_size, tourn_size, cross_callback,
     return child_pop
 
 
-def _first_selection(parent_pop, tourn_size):
-    return _tournament_selection(parent_pop, tourn_size)
-
-
-def _second_selection(parent_pop, tourn_size, parent_a):
-    # select parent_b from same subpop as parent_a to ensure that they can
-    # crossover ok
-    parent_subpop = get_subpop(pop=parent_pop,
-                               subspecies_tag=parent_a.subspecies_tag)
-    return _tournament_selection(parent_subpop, tourn_size)
-
-
-def _tournament_selection(pop, tourn_size):
-    def _select_random_indiv(pop):
-        return np.random.choice(pop)
-    best_indiv = _select_random_indiv(pop)
+def _tournament_selection(subpop, tourn_size):
+    def _select_random_indiv(subpop):
+        return np.random.choice(subpop)
+    best_indiv = _select_random_indiv(subpop)
     for _ in range(2, (tourn_size + 1)):
-        next_indiv = _select_random_indiv(pop)
+        next_indiv = _select_random_indiv(subpop)
         if crowded_comparison_operator(next_indiv, best_indiv):
             best_indiv = next_indiv
     return best_indiv

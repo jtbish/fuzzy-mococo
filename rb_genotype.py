@@ -193,7 +193,7 @@ def _make_consequent(class_labels, selected_label):
 
 
 def repair_rb_genotype_if_needed(genotype, inference_engine):
-    complexity = _calc_genotype_complexity(genotype)
+    complexity = calc_rb_genotype_complexity(genotype)
     is_invalid = complexity < MIN_COMPLEXITY
     if is_invalid:
         orig_genotype = copy.deepcopy(genotype)
@@ -202,7 +202,7 @@ def repair_rb_genotype_if_needed(genotype, inference_engine):
                       f"{genotype}")
 
 
-def _calc_genotype_complexity(genotype):
+def calc_rb_genotype_complexity(genotype):
     return len([allele for allele in genotype if allele !=
                UNSPECIFIED_ALLELE])
 

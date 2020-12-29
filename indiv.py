@@ -1,5 +1,6 @@
 from util import get_possibly_null_attr
-from multi_objective import MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST
+from multi_objective import (MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST,
+                             MIN_DOMINATION_COUNT)
 from object_creation import get_next_indiv_id
 
 
@@ -9,8 +10,12 @@ class Indiv:
         self._subspecies_tag = subspecies_tag
         self._genotype = genotype
         self._phenotype = None
+        self._perf = None
+        self._complexity = None
         self._pareto_front_rank = None
         self._crowding_dist = None
+        self._domination_count = None
+        self._dominated_set = None
         self._indiv_id = get_next_indiv_id()
 
     @property
@@ -30,6 +35,22 @@ class Indiv:
         self._phenotype = val
 
     @property
+    def perf(self):
+        return get_possibly_null_attr(self, "_perf")
+
+    @perf.setter
+    def perf(self, val):
+        self._perf = val
+
+    @property
+    def complexity(self):
+        return get_possibly_null_attr(self, "_complexity")
+
+    @complexity.setter
+    def complexity(self, val):
+        self._complexity = val
+
+    @property
     def pareto_front_rank(self):
         return get_possibly_null_attr(self, "_pareto_front_rank")
 
@@ -46,6 +67,25 @@ class Indiv:
     def crowding_dist(self, val):
         assert val >= MIN_CROWDING_DIST
         self._crowding_dist = val
+
+    @property
+    def domination_count(self):
+        """Number of indivs *this indiv is dominated by*"""
+        return get_possibly_null_attr(self, "_domination_count")
+
+    @domination_count.setter
+    def domination_count(self, val):
+        assert val >= MIN_DOMINATION_COUNT
+        self._domination_count = val
+
+    @property
+    def dominated_set(self):
+        """The set of indivs that *this indiv dominates*"""
+        return get_possibly_null_attr(self, "_dominated_set")
+
+    @dominated_set.setter
+    def dominated_set(self, val):
+        self._dominated_set = val
 
     def __eq__(self, other):
         # use global indiv id for equality because may have duplicate genotypes
