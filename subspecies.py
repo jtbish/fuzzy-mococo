@@ -27,7 +27,7 @@ def validate_subspecies_tags(subspecies_tags, env):
             assert num_mfs >= _MIN_NUM_MFS
 
 
-def make_subpecies_pmfs_both_pops(subspecies_tags):
+def make_subspecies_pmfs_both_pops(subspecies_tags):
     total_lv_genes = sum(
         [calc_num_lv_genes(subspecies_tag) for subspecies_tag in
          subspecies_tags])
@@ -59,12 +59,12 @@ def sample_subspecies_tags(subspecies_pmf, sample_size):
     for (idx, choice) in enumerate(subspecies_pmf.keys()):
         choices[idx] = choice
     probs = list(subspecies_pmf.values())
-    return np.random.choice(a=choices,
-                            size=sample_size,
-                            p=probs)
+    return list(np.random.choice(a=choices,
+                                 size=sample_size,
+                                 p=probs))
 
 
 def sample_subspecies_tag(subspecies_pmf):
-    res_arr = sample_subspecies_tags(subspecies_pmf, sample_size=1)
-    assert len(res_arr) == 1
-    return res_arr[0]
+    res_ls = sample_subspecies_tags(subspecies_pmf, sample_size=1)
+    assert len(res_ls) == 1
+    return res_ls[0]

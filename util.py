@@ -17,21 +17,21 @@ def make_inference_engine(and_type, or_type, agg_type, env):
     elif and_type == "prod":
         logical_and_strat = logical_and_prod
     else:
-        raise Exception
+        assert False
 
     if or_type == "max":
         logical_or_strat = logical_or_max
     elif or_type == "probor":
         logical_or_strat = logical_or_probor
     else:
-        raise Exception
+        assert False
 
     if agg_type == "bsum":
         aggregation_strat = BoundedSumAggregation()
     elif agg_type == "wavg":
         aggregation_strat = WeightedAvgAggregation()
     else:
-        raise Exception
+        assert False
 
     return InferenceEngine(class_labels, logical_and_strat, logical_or_strat,
                            aggregation_strat)

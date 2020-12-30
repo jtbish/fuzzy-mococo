@@ -1,6 +1,6 @@
 from util import get_possibly_null_attr
-from multi_objective import (MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST,
-                             MIN_DOMINATION_COUNT)
+from mo_constants import (MIN_PARETO_FRONT_RANK, MIN_CROWDING_DIST,
+                          MIN_DOMINATION_COUNT)
 from object_creation import get_next_soln_id
 
 

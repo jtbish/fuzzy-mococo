@@ -9,7 +9,7 @@ from zadeh.constants import CONSEQUENT_MAX, CONSEQUENT_MIN
 from zadeh.rule import FuzzyRule
 from zadeh.rule_base import FuzzyRuleBase
 from indiv import Indiv
-from multi_objective import MIN_COMPLEXITY
+from mo_constants import MIN_COMPLEXITY
 
 # housekeeping nt used for doing merges, not the actual CNF rule
 # antecedent is binary activation mask for feature mfs, consequent is the
@@ -24,16 +24,17 @@ def calc_num_rb_genes(subspecies_tag):
 
 
 def make_rb_indiv(subspecies_tag, inference_engine,
-                  p_unspec_allele):
-    assert 0 < p_unspec_allele < 1
+                  unspec_init_mult):
+    num_genes_needed = calc_num_rb_genes(subspecies_tag)
+    assert 1 <= unspec_init_mult <= num_genes_needed
+    p_unspec_allele = (unspec_init_mult * (1 / num_genes_needed))
     p_remainder = (1 - p_unspec_allele)
     init_probs = {}
     init_probs[UNSPECIFIED_ALLELE] = p_unspec_allele
     other_alleles = inference_engine.class_labels
     num_other_alleles = len(other_alleles)
     for other_allele in other_alleles:
-        init_probs[other_allele] = p_remainder / num_other_alleles
-    num_genes_needed = calc_num_rb_genes(subspecies_tag)
+        init_probs[other_allele] = (p_remainder / num_other_alleles)
     genotype = np.random.choice(a=list(init_probs.keys()),
                                 size=num_genes_needed,
                                 p=list(init_probs.values()))

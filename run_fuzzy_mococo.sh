@@ -4,19 +4,19 @@ subspecies_tags="3,3 4,4 5,5"
 ie_and_type="min"
 ie_or_type="max"
 ie_agg_type="wavg"
-lv_pop_size=200
-rb_pop_size=500
-rb_p_unspec_init=0.15
+lv_pop_size=300
+rb_pop_size=750
+rb_unspec_init_mult=1
 num_gens=50
-num_collabrs=8
+num_collabrs=2
 lv_tourn_size=2
 rb_tourn_size=2
 lv_p_cross_line=0.75
-lv_mut_sigma=0.02
-rb_cross_swap_mult=2
+lv_mut_sigma=0.01
+rb_cross_swap_mult=1
 rb_mut_flip_mult=1
 
-for seed in {0..4}; do
+for seed in {1..4}; do
    sbatch fuzzy_mococo.sh \
         "$seed" \
         "$env_name" \
@@ -26,7 +26,7 @@ for seed in {0..4}; do
         "$ie_agg_type" \
         "$lv_pop_size" \
         "$rb_pop_size" \
-        "$rb_p_unspec_init" \
+        "$rb_unspec_init_mult" \
         "$num_gens" \
         "$num_collabrs" \
         "$lv_tourn_size" \

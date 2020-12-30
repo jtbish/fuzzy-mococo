@@ -61,7 +61,7 @@ def _run_ga(parent_pop, child_pop_size, subspecies_pmf, tourn_size,
     """Vanilla GA with parametrised crossover and mutation funcs."""
     assert child_pop_size % 2 == 0
     child_pop = []
-    for _ in range(int(child_pop_size / 2)):
+    for _ in range(child_pop_size // 2):
         subspecies_tag = sample_subspecies_tag(subspecies_pmf)
         subpop = get_subpop(parent_pop, subspecies_tag)
         parent_a = _tournament_selection(subpop, tourn_size)

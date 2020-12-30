@@ -4,12 +4,9 @@ import math
 import numpy as np
 from zadeh.error import UndefinedMappingError
 from rb_genotype import calc_rb_genotype_complexity
-
-MIN_DOMINATION_COUNT = 0
-MIN_PARETO_FRONT_RANK = 1
-MIN_CROWDING_DIST = 0
-
-MIN_COMPLEXITY = 4
+from subspecies import sample_subspecies_tags
+from mo_constants import (MIN_DOMINATION_COUNT, MIN_PARETO_FRONT_RANK,
+                          MIN_COMPLEXITY)
 
 
 def calc_soln_perf(soln, env):
@@ -103,16 +100,16 @@ def _complexity_objective(item):
     return item.complexity
 
 
-def _is_better(objective_func, first_item, second_item):
-    """Is first_item 'better than' second_item according to objective_func?"""
+def _is_better(objective_func, item_a, item_b):
+    """Is item_a "better than" item_b according to objective_func?"""
     if objective_func == _perf_objective:
         # higher is better
-        return objective_func(first_item) > objective_func(second_item)
+        return objective_func(item_a) > objective_func(item_b)
     elif objective_func == _complexity_objective:
         # lower is better
-        return objective_func(first_item) < objective_func(second_item)
+        return objective_func(item_a) < objective_func(item_b)
     else:
-        raise Exception
+        assert False
 
 
 def assign_crowding_dists(container, env, max_complexity):
@@ -165,7 +162,7 @@ def _get_fmax(objective_func, env, max_complexity):
     elif objective_func == _complexity_objective:
         return max_complexity
     else:
-        raise Exception
+        assert False
 
 
 def _get_fmin(objective_func, env):
@@ -174,23 +171,43 @@ def _get_fmin(objective_func, env):
     elif objective_func == _complexity_objective:
         return MIN_COMPLEXITY
     else:
-        raise Exception
+        assert False
 
 
-def select_parent_pop(pop, parent_pop_size, env, max_complexity):
+def select_parent_pop(gen_num, pop, parent_pop_size, subspecies_pmf):
     """NSGA-II style selection of candidate parents: first sort by pareto front
     rank then sort by crowding dist for last front that can't fit fully in
     parent pop. Selecting parents equiv. to updating archive."""
     logging.info("Selecting parent pop / updating archive")
-    assign_pareto_front_ranks(pop)
-    assign_crowding_dists(pop, env, max_complexity)
+    if gen_num == 0:
+        return _select_init_parent_pop(pop, parent_pop_size)
+    else:
+        return _select_subsq_parent_pop(pop, parent_pop_size, subspecies_pmf)
+
+
+def _select_init_parent_pop(pop, parent_pop_size):
+    assert len(pop) == parent_pop_size
+    return pop
+
+
+def _select_subsq_parent_pop(pop, parent_pop_size, subspecies_pmf):
+    assert len(pop) == 2*parent_pop_size
     crowded_comparison_sorted_pop = crowded_comparison_sort(pop)
-    parent_pop = crowded_comparison_sorted_pop[0:parent_pop_size]
+    tags_to_select = sample_subspecies_tags(subspecies_pmf,
+                                            sample_size=parent_pop_size)
+    parent_pop = []
+    # take the best N of each subspecies tag where N is dictated by the tags
+    # sample
+    for subspecies_tag in subspecies_pmf.keys():
+        num_to_select = tags_to_select.count(subspecies_tag)
+        sorted_curr_tag = [indiv for indiv in crowded_comparison_sorted_pop if
+                           indiv.subspecies_tag == subspecies_tag]
+        parent_pop.extend(sorted_curr_tag[0:num_to_select])
+    assert len(parent_pop) == parent_pop_size
     return parent_pop
 
 
 def crowded_comparison_sort(container):
-    # first sort by crowding dist desc, then by pfr asc.
     crowding_dist_desc = sorted(container,
                                 key=lambda item: item.crowding_dist,
                                 reverse=True)
@@ -198,15 +215,15 @@ def crowded_comparison_sort(container):
                   key=lambda item: item.pareto_front_rank)
 
 
-def crowded_comparison_operator(indiv_a, indiv_b):
-    """NSGA-II crowded comparison operator: determines whether indiv_a is
-    'better than' indiv_b in relation to Pareto front rank and crowding
+def crowded_comparison_operator(item_a, item_b):
+    """NSGA-II crowded comparison operator: determines whether item_a is
+    "better than" item_b in relation to Pareto front rank and crowding
     dist."""
-    if indiv_a.pareto_front_rank < indiv_b.pareto_front_rank:
+    if item_a.pareto_front_rank < item_b.pareto_front_rank:
         return True
-    elif indiv_a.pareto_front_rank == indiv_b.pareto_front_rank:
-        return indiv_a.crowding_dist > indiv_b.crowding_dist
-    elif indiv_a.pareto_front_rank > indiv_b.pareto_front_rank:
+    elif item_a.pareto_front_rank == item_b.pareto_front_rank:
+        return item_a.crowding_dist > item_b.crowding_dist
+    elif item_a.pareto_front_rank > item_b.pareto_front_rank:
         return False
     else:
-        raise Exception
+        assert False

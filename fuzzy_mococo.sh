@@ -7,13 +7,13 @@ python3 fuzzy_mococo.py \
     --experiment-name="$SLURM_JOB_ID" \
     --seed="$1" \
     --env-name="$2" \
-    --subspecies-tags "$3" \
+    --subspecies-tags="$3" \
     --ie-and-type="$4" \
     --ie-or-type="$5" \
     --ie-agg-type="$6" \
     --lv-pop-size="$7" \
     --rb-pop-size="$8" \
-    --rb-p-unspec-init="$9" \
+    --rb-unspec-init-mult="$9" \
     --num-gens="${10}" \
     --num-collabrs="${11}" \
     --lv-tourn-size="${12}" \
