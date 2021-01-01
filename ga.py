@@ -34,8 +34,7 @@ def run_lv_ga(lv_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
 
 
 def run_rb_ga(rb_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
-              cross_swap_mult, mut_flip_mult,
-              inference_engine):
+              p_cross_swap, p_mut_flip, inference_engine):
     logging.info("Running rb ga")
     return _run_ga(rb_parent_pop,
                    child_pop_size,
@@ -44,13 +43,13 @@ def run_rb_ga(rb_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
                    cross_callback={
                        "func": _uniform_crossover,
                        "kwargs": {
-                           "cross_swap_mult": cross_swap_mult
+                           "p_cross_swap": p_cross_swap
                        }
                    },
                    mut_callback={
                        "func": _flip_mutation,
                        "kwargs": {
-                           "mut_flip_mult": mut_flip_mult,
+                           "p_mut_flip": p_mut_flip,
                            "inference_engine": inference_engine
                        }
                    })
@@ -105,12 +104,10 @@ def _crossover_children(child_a_genotype, child_b_genotype, cross_callback):
     cross_func(child_a_genotype, child_b_genotype, **func_kwargs)
 
 
-def _uniform_crossover(child_a_genotype, child_b_genotype, cross_swap_mult):
+def _uniform_crossover(child_a_genotype, child_b_genotype, p_cross_swap):
     assert len(child_a_genotype) == len(child_b_genotype)
-    num_genes = len(child_a_genotype)
-    assert 1 <= cross_swap_mult <= num_genes
-    p_cross_swap = cross_swap_mult * (1 / num_genes)
-    for idx in range(0, num_genes):
+    assert 0 <= p_cross_swap <= 1
+    for idx in range(0, len(child_a_genotype)):
         should_swap = np.random.rand() < p_cross_swap
         if should_swap:
             child_a_genotype[idx], child_b_genotype[idx] = \
@@ -118,7 +115,9 @@ def _uniform_crossover(child_a_genotype, child_b_genotype, cross_swap_mult):
 
 
 def _line_recombination(child_a_genotype, child_b_genotype, p_cross_line):
-    """Essentials of Metaheuristics Algorithm 28."""
+    """Essentials of Metaheuristics Algorithm 28, this version assumes p=0 s.t.
+    children can only be located within the hypercube defined by the
+    parents."""
     assert len(child_a_genotype) == len(child_b_genotype)
     should_cross = np.random.rand() < p_cross_line
     if should_cross:
@@ -141,13 +140,11 @@ def _mutate_child(child_genotype, mut_callback):
     mut_func(child_genotype, **func_kwargs)
 
 
-def _flip_mutation(child_genotype, mut_flip_mult, inference_engine):
+def _flip_mutation(child_genotype, p_mut_flip, inference_engine):
     possible_rb_alleles = get_possible_rb_alleles(inference_engine)
     flip_map = _build_flip_map(possible_rb_alleles)
-    num_genes = len(child_genotype)
-    assert 1 <= mut_flip_mult <= num_genes
-    p_mut_flip = mut_flip_mult * (1 / num_genes)
-    for idx in range(0, num_genes):
+    assert 0 <= p_mut_flip <= 1
+    for idx in range(0, len(child_genotype)):
         should_flip = np.random.rand() < p_mut_flip
         if should_flip:
             curr_val = child_genotype[idx]

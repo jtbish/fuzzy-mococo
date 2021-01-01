@@ -50,15 +50,15 @@ def parse_args():
                         required=True)
     parser.add_argument("--lv-pop-size", type=int, required=True)
     parser.add_argument("--rb-pop-size", type=int, required=True)
-    parser.add_argument("--rb-unspec-init-mult", type=int, required=True)
+    parser.add_argument("--rb-p-unspec-init", type=float, required=True)
     parser.add_argument("--num-gens", type=int, required=True)
     parser.add_argument("--num-collabrs", type=int, required=True)
     parser.add_argument("--lv-tourn-size", type=int, required=True)
     parser.add_argument("--rb-tourn-size", type=int, required=True)
     parser.add_argument("--lv-p-cross-line", type=float, required=True)
     parser.add_argument("--lv-mut-sigma", type=float, required=True)
-    parser.add_argument("--rb-cross-swap-mult", type=int, required=True)
-    parser.add_argument("--rb-mut-flip-mult", type=int, required=True)
+    parser.add_argument("--rb-p-cross-swap", type=float, required=True)
+    parser.add_argument("--rb-p-mut-flip", type=float, required=True)
     return parser.parse_args()
 
 
@@ -82,7 +82,7 @@ def main(args):
     # p1, p2
     lv_parent_pop = _init_lv_pop(lv_subspecies_pmf, args.lv_pop_size)
     rb_parent_pop = _init_rb_pop(rb_subspecies_pmf, args.rb_pop_size,
-                                 inference_engine, args.rb_unspec_init_mult)
+                                 inference_engine, args.rb_p_unspec_init)
     # q1, q2
     lv_child_pop = []
     rb_child_pop = []
@@ -153,8 +153,8 @@ def main(args):
                                  child_pop_size=args.rb_pop_size,
                                  subspecies_pmf=rb_subspecies_pmf,
                                  tourn_size=args.rb_tourn_size,
-                                 cross_swap_mult=args.rb_cross_swap_mult,
-                                 mut_flip_mult=args.rb_mut_flip_mult,
+                                 p_cross_swap=args.rb_p_cross_swap,
+                                 p_mut_flip=args.rb_p_mut_flip,
                                  inference_engine=inference_engine)
 
         _update_pops_history(lv_pops_history, lv_parent_pop, lv_child_pop,
@@ -203,14 +203,14 @@ def _init_lv_pop(lv_subspecies_pmf, lv_pop_size):
 
 
 def _init_rb_pop(rb_subspecies_pmf, rb_pop_size, inference_engine,
-                 rb_unspec_init_mult):
+                 rb_p_unspec_init):
     logging.info("Initing rb pop")
     subspecies_tag_sample = sample_subspecies_tags(rb_subspecies_pmf,
                                                    sample_size=rb_pop_size)
     rb_pop = []
     for subspecies_tag in subspecies_tag_sample:
         rb_pop.append(make_rb_indiv(subspecies_tag, inference_engine,
-                                    unspec_init_mult=rb_unspec_init_mult))
+                                    p_unspec_init=rb_p_unspec_init))
     return rb_pop
 
 

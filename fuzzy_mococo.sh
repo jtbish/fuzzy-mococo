@@ -13,13 +13,13 @@ python3 fuzzy_mococo.py \
     --ie-agg-type="$6" \
     --lv-pop-size="$7" \
     --rb-pop-size="$8" \
-    --rb-unspec-init-mult="$9" \
+    --rb-p-unspec-init="$9" \
     --num-gens="${10}" \
     --num-collabrs="${11}" \
     --lv-tourn-size="${12}" \
     --rb-tourn-size="${13}" \
     --lv-p-cross-line="${14}" \
     --lv-mut-sigma="${15}" \
-    --rb-cross-swap-mult="${16}" \
-    --rb-mut-flip-mult="${17}"
+    --rb-p-cross-swap="${16}" \
+    --rb-p-mut-flip="${17}"
 mv "slurm-${SLURM_JOB_ID}.out" "${SLURM_JOB_ID}/"

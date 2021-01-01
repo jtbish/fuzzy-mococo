@@ -30,7 +30,10 @@ def main(args):
     (perf, trajs) = env.assess_perf_and_get_trajs(policy)
     for traj in trajs:
         print(len(traj))
+    print(f"min traj len: {min([len(traj) for traj in trajs])}")
+    print(f"max traj len: {max([len(traj) for traj in trajs])}")
     print(perf)
+    print(np.histogram([len(traj) for traj in trajs], bins=15))
 
     x_min = POS_MIN
     x_max = POS_MAX

@@ -24,10 +24,9 @@ def calc_num_rb_genes(subspecies_tag):
 
 
 def make_rb_indiv(subspecies_tag, inference_engine,
-                  unspec_init_mult):
-    num_genes_needed = calc_num_rb_genes(subspecies_tag)
-    assert 1 <= unspec_init_mult <= num_genes_needed
-    p_unspec_allele = (unspec_init_mult * (1 / num_genes_needed))
+                  p_unspec_init):
+    p_unspec_allele = p_unspec_init
+    assert 0 <= p_unspec_allele <= 1
     p_remainder = (1 - p_unspec_allele)
     init_probs = {}
     init_probs[UNSPECIFIED_ALLELE] = p_unspec_allele
@@ -35,6 +34,7 @@ def make_rb_indiv(subspecies_tag, inference_engine,
     num_other_alleles = len(other_alleles)
     for other_allele in other_alleles:
         init_probs[other_allele] = (p_remainder / num_other_alleles)
+    num_genes_needed = calc_num_rb_genes(subspecies_tag)
     genotype = np.random.choice(a=list(init_probs.keys()),
                                 size=num_genes_needed,
                                 p=list(init_probs.values()))
