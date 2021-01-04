@@ -119,6 +119,6 @@ def _make_ref_points(domain, subdomains, genes, num_mfs):
         ref_points.append(ref_point)
     ref_points.append(domain.max)
     assert len(ref_points) == (num_mfs + 2)
-    if num_mfs == 2:
-        print(f"{domain}: {subdomains}: {genes} -> {ref_points}")
+#    if num_mfs == 2:
+#        print(f"{domain}: {subdomains}: {genes} -> {ref_points}")
     return ref_points
