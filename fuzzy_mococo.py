@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument("--subspecies-tags",
                         type=parse_subspecies_tags,
                         required=True)
+    parser.add_argument("--subspecies-pmf-base", type=float, required=True)
     parser.add_argument("--ie-and-type",
                         choices=["min", "prod"],
                         required=True)
@@ -79,7 +80,8 @@ def main(args):
     subspecies_tags = args.subspecies_tags
     validate_subspecies_tags(subspecies_tags, env)
     (lv_subspecies_pmf, rb_subspecies_pmf) = \
-        make_subspecies_pmfs_both_pops(subspecies_tags)
+        make_subspecies_pmfs_both_pops(subspecies_tags,
+                                       args.subspecies_pmf_base)
 
     inference_engine = make_inference_engine(args.ie_and_type, args.ie_or_type,
                                              args.ie_agg_type, env)

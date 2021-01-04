@@ -27,22 +27,24 @@ def validate_subspecies_tags(subspecies_tags, env):
             assert num_mfs >= _MIN_NUM_MFS
 
 
-def make_subspecies_pmfs_both_pops(subspecies_tags):
-    total_lv_genes = sum(
-        [calc_num_lv_genes(subspecies_tag) for subspecies_tag in
-         subspecies_tags])
-    total_rb_genes = sum(
-        [calc_num_rb_genes(subspecies_tag) for subspecies_tag in
-         subspecies_tags])
+def make_subspecies_pmfs_both_pops(subspecies_tags, subspecies_pmf_base):
+    # subspecies pmfs proportional to base^(num dims)
+    assert subspecies_pmf_base >= 1.0
+    base = subspecies_pmf_base
 
+    lv_denom = sum([base**calc_num_lv_genes(subspecies_tag) for
+                    subspecies_tag in subspecies_tags])
     lv_subspecies_pmf = {}
     for subspecies_tag in subspecies_tags:
-        lv_subspecies_pmf[subspecies_tag] = \
-            (calc_num_lv_genes(subspecies_tag)) / total_lv_genes
+        numer = base**calc_num_lv_genes(subspecies_tag)
+        lv_subspecies_pmf[subspecies_tag] = (numer / lv_denom)
+
+    rb_denom = sum([base**calc_num_rb_genes(subspecies_tag) for
+                   subspecies_tag in subspecies_tags])
     rb_subspecies_pmf = {}
     for subspecies_tag in subspecies_tags:
-        rb_subspecies_pmf[subspecies_tag] = \
-            (calc_num_rb_genes(subspecies_tag)) / total_rb_genes
+        numer = base**calc_num_rb_genes(subspecies_tag)
+        rb_subspecies_pmf[subspecies_tag] = (numer / rb_denom)
 
     pmf_sum = 1.0
     assert math.isclose(sum(lv_subspecies_pmf.values()), pmf_sum)
