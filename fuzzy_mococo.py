@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import argparse
-import copy
 import glob
 import logging
 import os
@@ -12,24 +11,25 @@ from multiprocessing import Pool, set_start_method
 from pathlib import Path
 
 import numpy as np
+from rlenvs.cartpole import make_cartpole_a_env as make_cp_a
 from rlenvs.mountain_car import make_mountain_car_a_env as make_mc_a
 from rlenvs.mountain_car import make_mountain_car_b_env as make_mc_b
 from rlenvs.mountain_car import make_mountain_car_c_env as make_mc_c
-from rlenvs.cartpole import make_cartpole_a_env as make_cp_a
-from soln import Solution
 from zadeh.rule_base import FuzzyRuleBase
-from subspecies import (parse_subspecies_tags, validate_subspecies_tags,
-                        make_subspecies_pmfs_both_pops, get_subpop,
-                        sample_subspecies_tags)
-from lv_genotype import make_lv_indiv, make_ling_vars
-from multi_objective import (assign_crowding_dists, assign_pareto_front_ranks,
-                             calc_soln_perf, calc_soln_complexity,
-                             calc_max_complexity, select_parent_pop,
-                             crowded_comparison_sort)
-from mo_constants import MIN_COMPLEXITY
-from rb_genotype import make_rb_indiv, make_rule_base
-from util import make_inference_engine, make_frbs, PopRecord
+
 from ga import run_lv_ga, run_rb_ga
+from lv_genotype import make_ling_vars, make_lv_indiv
+from mo_constants import MIN_COMPLEXITY_LB
+from multi_objective import (ComplexityBounds, assign_crowding_dists,
+                             assign_pareto_front_ranks, calc_max_complexity,
+                             calc_soln_complexity, calc_soln_perf,
+                             crowded_comparison_sort, select_parent_pop)
+from rb_genotype import make_rb_indiv, make_rule_base
+from soln import Solution
+from subspecies import (get_subpop, make_subspecies_pmfs_both_pops,
+                        parse_subspecies_tags, sample_subspecies_tags,
+                        validate_subspecies_tags)
+from util import PopRecord, make_frbs, make_inference_engine
 
 _NUM_CPUS = int(os.environ['SLURM_JOB_CPUS_PER_NODE'])
 
@@ -38,23 +38,28 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-name", required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--env-name", choices=["mc_a", "mc_b", "mc_c", "cp_a"],
+    parser.add_argument("--env-name",
+                        choices=["mc_a", "mc_b", "mc_c", "cp_a"],
                         required=True)
-    parser.add_argument("--subspecies-tags", type=parse_subspecies_tags,
+    parser.add_argument("--subspecies-tags",
+                        type=parse_subspecies_tags,
                         required=True)
-    parser.add_argument("--ie-and-type", choices=["min", "prod"],
+    parser.add_argument("--ie-and-type",
+                        choices=["min", "prod"],
                         required=True)
-    parser.add_argument("--ie-or-type", choices=["max", "probor"],
+    parser.add_argument("--ie-or-type",
+                        choices=["max", "probor"],
                         required=True)
-    parser.add_argument("--ie-agg-type", choices=["bsum", "wavg"],
+    parser.add_argument("--ie-agg-type",
+                        choices=["bsum", "wavg"],
                         required=True)
+    parser.add_argument("--min-complexity", type=int, required=True)
     parser.add_argument("--lv-pop-size", type=int, required=True)
     parser.add_argument("--rb-pop-size", type=int, required=True)
     parser.add_argument("--rb-p-unspec-init", type=float, required=True)
     parser.add_argument("--num-gens", type=int, required=True)
     parser.add_argument("--num-collabrs", type=int, required=True)
-    parser.add_argument("--lv-tourn-size", type=int, required=True)
-    parser.add_argument("--rb-tourn-size", type=int, required=True)
+    parser.add_argument("--tourn-size", type=int, required=True)
     parser.add_argument("--lv-p-cross-line", type=float, required=True)
     parser.add_argument("--lv-mut-sigma", type=float, required=True)
     parser.add_argument("--rb-p-cross-swap", type=float, required=True)
@@ -78,11 +83,16 @@ def main(args):
 
     inference_engine = make_inference_engine(args.ie_and_type, args.ie_or_type,
                                              args.ie_agg_type, env)
+    max_complexity = calc_max_complexity(subspecies_tags)
+    assert MIN_COMPLEXITY_LB <= args.min_complexity < max_complexity
+    complexity_bounds = ComplexityBounds(min=args.min_complexity,
+                                         max=max_complexity)
 
     # p1, p2
     lv_parent_pop = _init_lv_pop(lv_subspecies_pmf, args.lv_pop_size)
     rb_parent_pop = _init_rb_pop(rb_subspecies_pmf, args.rb_pop_size,
-                                 inference_engine, args.rb_p_unspec_init)
+                                 inference_engine, complexity_bounds.min,
+                                 args.rb_p_unspec_init)
     # q1, q2
     lv_child_pop = []
     rb_child_pop = []
@@ -90,16 +100,14 @@ def main(args):
     lv_pops_history = {}
     rb_pops_history = {}
     soln_set_history = {}
-
-    max_complexity = calc_max_complexity(subspecies_tags)
     soln_set = None
 
     for gen_num in range(args.num_gens + 1):
         logging.info(f"Gen {gen_num}")
         lv_comb_pop = lv_parent_pop + lv_child_pop
         rb_comb_pop = rb_parent_pop + rb_child_pop
-        _log_subspecies_dists(lv_parent_pop, rb_parent_pop,
-                              lv_child_pop, rb_child_pop)
+        _log_subspecies_dists(lv_parent_pop, rb_parent_pop, lv_child_pop,
+                              rb_child_pop)
         _validate_subpops_non_empty(gen_num, lv_parent_pop, rb_parent_pop,
                                     lv_child_pop, rb_child_pop,
                                     subspecies_tags)
@@ -112,19 +120,17 @@ def main(args):
             soln_set = _build_soln_set(lv_parent_pop, rb_parent_pop,
                                        subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, env, max_complexity)
+            _eval_soln_set(soln_set, env, complexity_bounds)
             _assign_indivs_credit(lv_parent_pop, soln_set)
             _assign_indivs_credit(rb_parent_pop, soln_set)
         else:
-#            _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
-#                                rb_child_pop, subspecies_tags)
             collabr_map = _select_subsq_collabrs(lv_parent_pop, rb_parent_pop,
                                                  subspecies_tags,
                                                  args.num_collabrs)
             soln_set = _build_soln_set(lv_child_pop, rb_child_pop,
                                        subspecies_tags, collabr_map,
                                        inference_engine)
-            _eval_soln_set(soln_set, env, max_complexity)
+            _eval_soln_set(soln_set, env, complexity_bounds)
             _assign_indivs_credit(lv_child_pop, soln_set)
             _assign_indivs_credit(rb_child_pop, soln_set)
 
@@ -134,7 +140,7 @@ def main(args):
         lv_comb_pop = lv_parent_pop + lv_child_pop
         rb_comb_pop = rb_parent_pop + rb_child_pop
         _assign_ranks_dists_both_pops(lv_comb_pop, rb_comb_pop, env,
-                                      max_complexity)
+                                      complexity_bounds)
         lv_parent_pop = select_parent_pop(gen_num,
                                           pop=lv_comb_pop,
                                           parent_pop_size=args.lv_pop_size,
@@ -146,16 +152,17 @@ def main(args):
         lv_child_pop = run_lv_ga(lv_parent_pop,
                                  child_pop_size=args.lv_pop_size,
                                  subspecies_pmf=lv_subspecies_pmf,
-                                 tourn_size=args.lv_tourn_size,
+                                 tourn_size=args.tourn_size,
                                  p_cross_line=args.lv_p_cross_line,
                                  mut_sigma=args.lv_mut_sigma)
         rb_child_pop = run_rb_ga(rb_parent_pop,
                                  child_pop_size=args.rb_pop_size,
                                  subspecies_pmf=rb_subspecies_pmf,
-                                 tourn_size=args.rb_tourn_size,
+                                 tourn_size=args.tourn_size,
                                  p_cross_swap=args.rb_p_cross_swap,
                                  p_mut_flip=args.rb_p_mut_flip,
-                                 inference_engine=inference_engine)
+                                 inference_engine=inference_engine,
+                                 min_complexity=complexity_bounds.min)
 
         _update_pops_history(lv_pops_history, lv_parent_pop, lv_child_pop,
                              gen_num)
@@ -203,14 +210,17 @@ def _init_lv_pop(lv_subspecies_pmf, lv_pop_size):
 
 
 def _init_rb_pop(rb_subspecies_pmf, rb_pop_size, inference_engine,
-                 rb_p_unspec_init):
+                 min_complexity, rb_p_unspec_init):
     logging.info("Initing rb pop")
     subspecies_tag_sample = sample_subspecies_tags(rb_subspecies_pmf,
                                                    sample_size=rb_pop_size)
     rb_pop = []
     for subspecies_tag in subspecies_tag_sample:
-        rb_pop.append(make_rb_indiv(subspecies_tag, inference_engine,
-                                    p_unspec_init=rb_p_unspec_init))
+        rb_pop.append(
+            make_rb_indiv(subspecies_tag,
+                          inference_engine,
+                          min_complexity,
+                          p_unspec_init=rb_p_unspec_init))
     return rb_pop
 
 
@@ -265,50 +275,6 @@ def _make_rb_phenotypes(rb_comb_pop, inference_engine):
     for indiv in rb_comb_pop:
         indiv.phenotype = make_rule_base(indiv.subspecies_tag, indiv.genotype,
                                          inference_engine)
-
-
-def _perform_extinction(lv_parent_pop, rb_parent_pop, lv_child_pop,
-                        rb_child_pop, subspecies_tags):
-    logging.info("Performing extinction")
-    assert len(lv_child_pop) > 0
-    assert len(rb_child_pop) > 0
-
-    p1 = lv_parent_pop
-    p2 = rb_parent_pop
-    q1 = lv_child_pop
-    q2 = rb_child_pop
-    for subspecies_tag in subspecies_tags:
-        # q1 coops with p2
-        q1_sigma = get_subpop(q1, subspecies_tag)
-        p2_sigma = get_subpop(p2, subspecies_tag)
-        if (len(q1_sigma) == 0) or (len(p2_sigma) == 0):
-            logging.info(f"Removing subspecies {subspecies_tag} from q1, p2")
-            for indiv in q1_sigma:
-                q1.remove(indiv)
-            for indiv in p2_sigma:
-                p2.remove(indiv)
-
-        # q2 coops with p1
-        q2_sigma = get_subpop(q2, subspecies_tag)
-        p1_sigma = get_subpop(p1, subspecies_tag)
-        if (len(q2_sigma) == 0) or (len(p1_sigma) == 0):
-            logging.info(f"Removing subspecies {subspecies_tag} from q2, p1")
-            for indiv in q2_sigma:
-                q2.remove(indiv)
-            for indiv in p1_sigma:
-                p1.remove(indiv)
-
-    r1 = p1 + q1
-    r2 = p2 + q2
-    subspecies_tags_copy = copy.deepcopy(subspecies_tags)
-    for subspecies_tag in subspecies_tags_copy:
-        # check if there are *any* indivs with given tag in either pop
-        # if not, subspecies is extinct
-        r1_sigma = get_subpop(r1, subspecies_tag)
-        r2_sigma = get_subpop(r2, subspecies_tag)
-        if (len(r1_sigma) == 0) and (len(r2_sigma) == 0):
-            subspecies_tags.remove(subspecies_tag)
-            logging.info(f"Subspecies {subspecies_tag} is now extinct")
 
 
 def _select_init_collabrs(lv_parent_pop, rb_parent_pop, subspecies_tags,
@@ -371,8 +337,8 @@ def _balanced_collabrs(subpop, num_collabrs):
     collabrs.extend(crowded_comparison_sorted[0:num_exploit])
     # explore in remaining indivs
     remaining = crowded_comparison_sorted[num_exploit:]
-    collabrs.extend(list(np.random.choice(remaining, size=num_explore,
-                    replace=False)))
+    collabrs.extend(
+        list(np.random.choice(remaining, size=num_explore, replace=False)))
     return collabrs
 
 
@@ -415,7 +381,7 @@ def _make_soln(first_indiv, second_indiv, inference_engine):
     return Solution(lv_indiv, rb_indiv, frbs)
 
 
-def _eval_soln_set(soln_set, env, max_complexity):
+def _eval_soln_set(soln_set, env, complexity_bounds):
     logging.info("Evaling soln perfs")
     # farm out performance evaluation to multiple processes
     # (parallelise over solns)
@@ -427,18 +393,17 @@ def _eval_soln_set(soln_set, env, max_complexity):
     complexities = [calc_soln_complexity(soln) for soln in soln_set]
 
     _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
-                                        max_complexity)
+                                        complexity_bounds)
     assign_pareto_front_ranks(soln_set)
-    assign_crowding_dists(soln_set, env, max_complexity)
+    assign_crowding_dists(soln_set, env, complexity_bounds)
 
 
 def _assign_perfs_complexities_to_solns(perfs, complexities, soln_set, env,
-                                        max_complexity):
+                                        complexity_bounds):
     for (perf, complexity, soln) in zip(perfs, complexities, soln_set):
-        #logging.info(f"{perf}, {complexity}")
         assert env.min_perf <= perf <= env.max_perf
         soln.perf = perf
-        assert MIN_COMPLEXITY <= complexity <= max_complexity
+        assert complexity_bounds.min <= complexity <= complexity_bounds.max
         soln.complexity = complexity
 
 
@@ -455,10 +420,10 @@ def _assign_indivs_credit(pop, soln_set):
 
 
 def _assign_ranks_dists_both_pops(lv_comb_pop, rb_comb_pop, env,
-                                  max_complexity):
+                                  complexity_bounds):
     for pop in (lv_comb_pop, rb_comb_pop):
         assign_pareto_front_ranks(pop)
-        assign_crowding_dists(pop, env, max_complexity)
+        assign_crowding_dists(pop, env, complexity_bounds)
 
 
 def _update_pops_history(pops_history, parent_pop, child_pop, gen_num):

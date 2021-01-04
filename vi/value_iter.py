@@ -67,7 +67,6 @@ def _compute_dims_ref_points(obs_space, num_ref_points_per_dim):
     return dims_ref_points
 
 
-
 def _calc_discrete_states(num_bins_per_dim, num_dims, dims_ref_points):
     # each discrete state is idenified by n-tuple giving idxs of bins
     # along dim axes, along with a "representative" continuous state that is

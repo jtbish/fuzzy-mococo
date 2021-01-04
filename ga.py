@@ -34,7 +34,7 @@ def run_lv_ga(lv_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
 
 
 def run_rb_ga(rb_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
-              p_cross_swap, p_mut_flip, inference_engine):
+              p_cross_swap, p_mut_flip, inference_engine, min_complexity):
     logging.info("Running rb ga")
     return _run_ga(rb_parent_pop,
                    child_pop_size,
@@ -50,7 +50,8 @@ def run_rb_ga(rb_parent_pop, child_pop_size, subspecies_pmf, tourn_size,
                        "func": _flip_mutation,
                        "kwargs": {
                            "p_mut_flip": p_mut_flip,
-                           "inference_engine": inference_engine
+                           "inference_engine": inference_engine,
+                           "min_complexity": min_complexity
                        }
                    })
 
@@ -140,7 +141,8 @@ def _mutate_child(child_genotype, mut_callback):
     mut_func(child_genotype, **func_kwargs)
 
 
-def _flip_mutation(child_genotype, p_mut_flip, inference_engine):
+def _flip_mutation(child_genotype, p_mut_flip, inference_engine,
+                   min_complexity):
     possible_rb_alleles = get_possible_rb_alleles(inference_engine)
     flip_map = _build_flip_map(possible_rb_alleles)
     assert 0 <= p_mut_flip <= 1
@@ -152,7 +154,8 @@ def _flip_mutation(child_genotype, p_mut_flip, inference_engine):
             # all options equally weighted
             new_val = np.random.choice(flip_options)
             child_genotype[idx] = new_val
-    repair_rb_genotype_if_needed(child_genotype, inference_engine)
+    repair_rb_genotype_if_needed(child_genotype, inference_engine,
+                                 min_complexity)
 
 
 def _build_flip_map(possible_rb_alleles):
