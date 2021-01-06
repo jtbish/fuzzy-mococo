@@ -82,6 +82,8 @@ def main(args):
     (lv_subspecies_pmf, rb_subspecies_pmf) = \
         make_subspecies_pmfs_both_pops(subspecies_tags,
                                        args.subspecies_pmf_base)
+    logging.info(f"lv subspecies pmf: {lv_subspecies_pmf}, "
+                 f"rb subspecies pmf: {rb_subspecies_pmf}")
 
     inference_engine = make_inference_engine(args.ie_and_type, args.ie_or_type,
                                              args.ie_agg_type, env)

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=coursework
+#SBATCH --partition=batch
 #SBATCH --cpus-per-task=8
 
 source ~/virtualenvs/mococo/bin/activate

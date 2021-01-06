@@ -7,7 +7,7 @@ from zadeh.error import UndefinedMappingError
 
 from mo_constants import MIN_DOMINATION_COUNT, MIN_PARETO_FRONT_RANK
 from rb_genotype import calc_rb_genotype_complexity
-from subspecies import sample_subspecies_tags
+from subspecies import sample_subspecies_tag
 
 ComplexityBounds = namedtuple("ComplexityBounds", ["min", "max"])
 
@@ -195,21 +195,28 @@ def _select_init_parent_pop(pop, parent_pop_size):
 
 def _select_subsq_parent_pop(pop, parent_pop_size, subspecies_pmf):
     assert len(pop) == 2 * parent_pop_size
-    crowded_comparison_sorted_pop = crowded_comparison_sort(pop)
-    tags_to_select = sample_subspecies_tags(subspecies_pmf,
-                                            sample_size=parent_pop_size)
+    sorted_pop = crowded_comparison_sort(pop)
     parent_pop = []
-    # take the best N of each subspecies tag where N is dictated by the tags
-    # sample
-    for subspecies_tag in subspecies_pmf.keys():
-        num_to_select = tags_to_select.count(subspecies_tag)
-        sorted_curr_tag = [
-            indiv for indiv in crowded_comparison_sorted_pop
+
+    while not _parent_pop_is_full(parent_pop, parent_pop_size):
+        subspecies_tag = sample_subspecies_tag(subspecies_pmf)
+        sorted_pop_with_tag = [
+            indiv for indiv in sorted_pop
             if indiv.subspecies_tag == subspecies_tag
         ]
-        parent_pop.extend(sorted_curr_tag[0:num_to_select])
+        need_to_resample = (len(sorted_pop_with_tag) == 0)
+        if need_to_resample:
+            continue
+        else:
+            best_indiv = sorted_pop_with_tag[0]
+            parent_pop.append(best_indiv)
+            sorted_pop.remove(best_indiv)
     assert len(parent_pop) == parent_pop_size
     return parent_pop
+
+
+def _parent_pop_is_full(parent_pop, parent_pop_size):
+    return len(parent_pop) == parent_pop_size
 
 
 def crowded_comparison_sort(container):
