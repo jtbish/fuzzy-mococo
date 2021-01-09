@@ -1,15 +1,15 @@
 #!/bin/bash
 env_name="cp_b"
-subspecies_tags="2,2,2,2 3,3,3,3"
+subspecies_tags="2,2,2,2 3,2,3,2 3,3,3,3"
 subspecies_pmf_base=1.025
 ie_and_type="min"
 ie_or_type="max"
 ie_agg_type="wavg"
 min_complexity=2
-lv_pop_size=250
-rb_pop_size=1000
+lv_pop_size=500
+rb_pop_size=2000
 rb_p_unspec_init=0.1
-num_gens=50
+num_gens=100
 num_collabrs=2
 tourn_size=2
 lv_p_cross_line=0.75

@@ -15,7 +15,6 @@ from rlenvs.cartpole import make_cartpole_a_env as make_cp_a
 from rlenvs.cartpole import make_cartpole_b_env as make_cp_b
 from rlenvs.mountain_car import make_mountain_car_a_env as make_mc_a
 from rlenvs.mountain_car import make_mountain_car_b_env as make_mc_b
-from rlenvs.mountain_car import make_mountain_car_c_env as make_mc_c
 from zadeh.rule_base import FuzzyRuleBase
 
 from ga import run_lv_ga, run_rb_ga
@@ -40,7 +39,7 @@ def parse_args():
     parser.add_argument("--experiment-name", required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--env-name",
-                        choices=["mc_a", "mc_b", "mc_c", "cp_a", "cp_b"],
+                        choices=["mc_a", "mc_b", "cp_a", "cp_b"],
                         required=True)
     parser.add_argument("--subspecies-tags",
                         type=parse_subspecies_tags,
@@ -196,8 +195,6 @@ def _make_env(env_name):
         return make_mc_a()
     elif env_name == "mc_b":
         return make_mc_b()
-    elif env_name == "mc_c":
-        return make_mc_c()
     elif env_name == "cp_a":
         return make_cp_a()
     elif env_name == "cp_b":
