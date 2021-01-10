@@ -38,9 +38,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-name", required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--env-name",
-                        choices=["mc_a", "mc_b", "cp_a", "cp_b"],
-                        required=True)
+    parser.add_argument(
+        "--env-name",
+        choices=["mc_a", "mc_b", "cp_a", "cp_b"],
+        required=True)
     parser.add_argument("--subspecies-tags",
                         type=parse_subspecies_tags,
                         required=True)
