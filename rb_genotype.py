@@ -144,18 +144,22 @@ def _try_merge_records(ref_record, comp_record):
     ref_antecedent = ref_record.antecedent
     comp_antecedent = comp_record.antecedent
 
-    # determine if the two antecedents can be merged
-    can_merge = False
     assert len(ref_antecedent) == len(comp_antecedent)
+    # determine if the two antecedents can be merged
+    # in order to do merge, antecedents must be identical in *all but one*
+    # clauses, since an OR represents generalising over one feature *for the
+    # same values of other features*
+    num_clauses = len(ref_antecedent)
+    num_same_parts_needed = (num_clauses - 1)
+    num_same_parts = 0
     for (ref_part, comp_part) in zip(ref_antecedent, comp_antecedent):
         assert len(ref_part) == len(comp_part)
         if ref_part == comp_part:
-            # common part of both antecedents that can be factored out
-            # so merge is possible
-            can_merge = True
-            break
+            num_same_parts += 1
+    assert num_same_parts != num_clauses  # no identical rules
 
     merged_record = None
+    can_merge = (num_same_parts == num_same_parts_needed)
     if can_merge:
         assert ref_record.consequent == comp_record.consequent
         consequent = ref_record.consequent
