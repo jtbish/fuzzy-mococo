@@ -8,7 +8,6 @@ from pathlib import Path
 
 from rlenvs.mountain_car import make_mountain_car_a_env as make_mc_a
 from rlenvs.mountain_car import make_mountain_car_b_env as make_mc_b
-from rlenvs.mountain_car import make_mountain_car_c_env as make_mc_c
 from mc_util import POS_MIN, POS_MAX, VEL_MIN, VEL_MAX, ACTION_SET
 from pi_npy_policy import PiNpyPolicy
 
